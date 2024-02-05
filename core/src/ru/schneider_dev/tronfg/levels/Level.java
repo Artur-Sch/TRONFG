@@ -185,8 +185,8 @@ public class Level extends StageGame {
                 public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
                     if (state == PLAY) {
                         if (player.isTouchedGround()) {
-                            player.jumpBack(8);
-//                            jumpGauge.start();
+//                            player.jumpBack(8);
+                            jumpGauge.start();
                             return true;
                         }
                     }
@@ -196,8 +196,8 @@ public class Level extends StageGame {
 
                 @Override
                 public void touchUp(InputEvent event, float x, float y, int pointer, int button) {
-//                    float jumpValue = jumpGauge.getValue();
-//                    player.jumpBack(jumpValue);
+                    float jumpValue = jumpGauge.getValue();
+                    player.jumpBack(jumpValue);
 
                 }
             });
@@ -207,9 +207,9 @@ public class Level extends StageGame {
                 public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
                     if (state == PLAY) {
                         if (player.isTouchedGround()) {
-                            player.jumpForward(8);
+//                            player.jumpForward(8);
 //
-//                            jumpGauge.start();
+                            jumpGauge.start();
                             return true;
                         }
                     }
@@ -219,8 +219,8 @@ public class Level extends StageGame {
 
                 @Override
                 public void touchUp(InputEvent event, float x, float y, int pointer, int button) {
-//                    float jumpValue = jumpGauge.getValue();
-//                    player.jumpForward(jumpValue);
+                    float jumpValue = jumpGauge.getValue();
+                    player.jumpForward(jumpValue);
 
                 }
             });

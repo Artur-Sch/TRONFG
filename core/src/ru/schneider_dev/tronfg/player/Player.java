@@ -46,7 +46,7 @@ public class Player extends ActorClip implements IBody {
     public Player(Level level) {
         this.level = level;
 
-        carImg = new Image(TRONgame.atlas.findRegion("car"));
+        carImg = new Image(TRONgame.atlas.findRegion("rover"));
         childs.addActor(carImg);
         carImg.setX(-carImg.getWidth()/2);
         carImg.setY(-15);
@@ -246,25 +246,26 @@ public class Player extends ActorClip implements IBody {
     public void jumpBack(float value) {
         if (value < 0.2f) value = 0.2f;
 
-//        car.applyLinearImpulse(0, jumpImpulse * value,
-//                car.getWorldCenter().x + 5 / Level.WORLD_SCALE,
-//                car.getWorldCenter().y, true);
-        car.applyLinearImpulse(0, 8,
-                car.getWorldCenter().x+1,
+        car.applyLinearImpulse(0, jumpImpulse * value,
+                car.getWorldCenter().x + 5 / Level.WORLD_SCALE,
                 car.getWorldCenter().y, true);
+//        car.applyLinearImpulse(0, 8,
+//                car.getWorldCenter().x+1,
+//                car.getWorldCenter().y, true);
         isTouchGround = false;
         jumpWait = 0.3f;
     }
 
     public void jumpForward(float value){
+
         if (value < 0.2f) value = 0.2f;
 
-//        car.applyLinearImpulse(0, jumpImpulse * value,
-//                car.getWorldCenter().x - 4 / Level.WORLD_SCALE,
-//                car.getWorldCenter().y, true);
-        car.applyLinearImpulse(0, 8,
-                car.getWorldCenter().x -1,
+        car.applyLinearImpulse(0, jumpImpulse * value,
+                car.getWorldCenter().x - 4 / Level.WORLD_SCALE,
                 car.getWorldCenter().y, true);
+//        car.applyLinearImpulse(0, 8,
+//                car.getWorldCenter().x -1,
+//                car.getWorldCenter().y, true);
         isTouchGround = false;
         jumpWait = 0.3f;
     }
@@ -279,7 +280,6 @@ public class Player extends ActorClip implements IBody {
             destroyOnNextUpdate = false;
             world.destroyJoint(frontWheelJoint);
             world.destroyJoint(rearWheelJoint);
-//
         }
 
         super.act(delta);

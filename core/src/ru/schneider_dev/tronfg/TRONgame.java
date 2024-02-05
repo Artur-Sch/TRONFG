@@ -228,7 +228,7 @@ public class TRONgame extends Game {
 
 				} else if (code == Level.ON_FAILED) {
 					gameCallback.sendMessage(SHOW_BANNER);
-					media.playMusic("level_failed.ogg", false);
+//					media.playMusic("level_failed.ogg", false);
 				}
 			}
 		});
