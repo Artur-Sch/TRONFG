@@ -99,6 +99,7 @@ nb-configuration.xml
 ## Gradle
 
 /local.properties
+/android/keystore.properties
 .gradle/
 gradle-app.setting
 /build/
