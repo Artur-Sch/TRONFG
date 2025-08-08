@@ -1,6 +1,6 @@
 apply plugin: "java"
 
-sourceCompatibility = 1.6
+sourceCompatibility = 11
 sourceSets.main.java.srcDirs = [ "src/" ]
 
 project.ext.mainClassName = "ru.schneider_dev.tronfg.desktop.DesktopLauncher"
@@ -24,9 +24,9 @@ task debug(dependsOn: classes, type: JavaExec) {
 }
 
 task dist(type: Jar) {
-    from files(sourceSets.main.output.classesDir)
+    from files(sourceSets.main.output.classesDirs)
     from files(sourceSets.main.output.resourcesDir)
-    from {configurations.compile.collect {zipTree(it)}}
+    from {configurations.implementation.collect {zipTree(it)}}
     from files(project.assetsDir);
  
     manifest {

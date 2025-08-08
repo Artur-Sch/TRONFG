@@ -1,6 +1,7 @@
 android {
-    buildToolsVersion "34.0.0"
-    compileSdkVersion 34
+    namespace "ru.schneider_dev.tronfg"
+    buildToolsVersion "35.0.0"
+    compileSdkVersion 35
     sourceSets {
         main {
             manifest.srcFile 'AndroidManifest.xml'
@@ -12,23 +13,53 @@ android {
             jniLibs.srcDirs = ['libs']
         }
 
-        instrumentTest.setRoot('tests')
+        androidTest.setRoot('tests')
     }
     packagingOptions {
         exclude 'META-INF/robovm/ios/robovm.xml'
     }
+    
+    repositories {
+        google()
+        mavenCentral()
+    }
     defaultConfig {
         applicationId "ru.schneider_dev.tronfg"
-        minSdkVersion 14
-        targetSdkVersion 34
-        versionCode 2
-        versionName "1.1"
+        minSdkVersion 19
+        targetSdkVersion 35
+        versionCode 3
+        versionName "1.2"
+        multiDexEnabled true
     }
+    
+    packagingOptions {
+        exclude 'META-INF/kotlinx_coroutines_core.version'
+    }
+    
+    signingConfigs {
+        release {
+            def keystorePropertiesFile = rootProject.file("android/keystore.properties")
+            def keystoreProperties = new Properties()
+            if (keystorePropertiesFile.exists()) {
+                keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+                storeFile file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+            }
+        }
+    }
+    
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
         }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
     }
 }
 // called every time gradle gets executed, takes the native dependencies of
@@ -78,55 +109,5 @@ task run(type: Exec) {
     def adb = path + "/platform-tools/adb"
     commandLine "$adb", 'shell', 'am', 'start', '-n', 'ru.schneider_dev.tronfg/ru.schneider_dev.tronfg.AndroidLauncher'
 }
-// sets up the Android Eclipse project, using the old Ant based build.
-eclipse {
-    // need to specify Java source sets explicitly, SpringSource Gradle Eclipse plugin
-    // ignores any nodes added in classpath.file.withXml
-    sourceSets {
-        main {
-            java.srcDirs "src", 'gen'
-        }
-    }
 
-    jdt {
-        sourceCompatibility = 1.6
-        targetCompatibility = 1.6
-    }
 
-    classpath {
-        plusConfigurations += [project.configurations.compile]
-        containers 'com.android.ide.eclipse.adt.ANDROID_FRAMEWORK', 'com.android.ide.eclipse.adt.LIBRARIES'
-    }
-
-    project {
-        name = appName + "-android"
-        natures 'com.android.ide.eclipse.adt.AndroidNature'
-        buildCommands.clear();
-        buildCommand "com.android.ide.eclipse.adt.ResourceManagerBuilder"
-        buildCommand "com.android.ide.eclipse.adt.PreCompilerBuilder"
-        buildCommand "org.eclipse.jdt.core.javabuilder"
-        buildCommand "com.android.ide.eclipse.adt.ApkBuilder"
-    }
-}
-// sets up the Android Idea project, using the old Ant based build.
-idea {
-    module {
-        sourceDirs += file("src");
-        scopes = [COMPILE: [plus: [project.configurations.compile]]]
-
-        iml {
-            withXml {
-                def node = it.asNode()
-                def builder = NodeBuilder.newInstance();
-                builder.current = node;
-                builder.component(name: "FacetManager") {
-                    facet(type: "android", name: "Android") {
-                        configuration {
-                            option(name: "UPDATE_PROPERTY_FILES", value: "true")
-                        }
-                    }
-                }
-            }
-        }
-    }
-}

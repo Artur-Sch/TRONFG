@@ -2,7 +2,7 @@
 <resources>
 
     <string name="app_name">TRON Fan Game</string>
-    <string name="share_url">http://play.google.com/store/apps/detalis?id=ru.schneider_dev.tronfg</string>
+    <string name="share_url">https://play.google.com/store/apps/details?id=ru.schneider_dev.tronfg</string>
     <string name="share_title">TRON Fan Game</string>
     <string name="share_body">Try this game:</string>
     <string name="share_via">Share via</string>
