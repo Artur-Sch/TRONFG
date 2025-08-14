@@ -15,6 +15,9 @@ import com.badlogic.gdx.math.EarClippingTriangulator;
 import com.badlogic.gdx.math.Polygon;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
+
+import java.lang.Math;
+
 import com.badlogic.gdx.physics.box2d.Body;
 import com.badlogic.gdx.physics.box2d.BodyDef;
 import com.badlogic.gdx.physics.box2d.BodyDef.BodyType;
@@ -40,7 +43,7 @@ import ru.schneider_dev.tronfg.Setting;
 import ru.schneider_dev.tronfg.TRONgame;
 import ru.schneider_dev.tronfg.controls.CButton;
 import ru.schneider_dev.tronfg.controls.JoyStick;
-import ru.schneider_dev.tronfg.controls.JumpGauge;
+
 import ru.schneider_dev.tronfg.player.IBody;
 import ru.schneider_dev.tronfg.player.Player;
 import ru.schneider_dev.tronfg.player.UserData;
@@ -52,7 +55,7 @@ import ru.schneider_dev.tronfg.screens.PausedScreen;
 public class Level extends StageGame {
     private String directory;
 
-    public static final  float WORLD_SCALE = 40;
+    public static final float WORLD_SCALE = 40;
 
     public static final int ON_RESTART = 1;
     public static final int ON_QUIT = 2;
@@ -67,8 +70,6 @@ public class Level extends StageGame {
     private static final int PAUSED = 4;
 
     private int state = 1;
-
-    private JumpGauge jumpGauge;
 
     private int mapWidth, mapHeight, tilePixelWidth, tilePixelHeight, levelWidth, levelHeight;
 
@@ -99,12 +100,24 @@ public class Level extends StageGame {
     private LevelFailedScreen levelFailedScreen;
     private PausedScreen pausedScreen;
 
+    // Переменные для таймера переворота
+    private boolean isTimerRunning = false;
+    private float upsideDownTimer = 0f;
+    private static final float UPSIDE_DOWN_TIMEOUT = 3.0f; // 3 секунд
+
+    // Переменные для отображения текста таймера
+    private com.badlogic.gdx.scenes.scene2d.ui.Label timerLabel;
+    private com.badlogic.gdx.scenes.scene2d.ui.Label.LabelStyle timerStyle;
+
     public Level(String directory) {
         this.directory = directory;
 
         pleaseWait = new Image(TRONgame.atlas.findRegion("please_wait"));
         addOverlayChild(pleaseWait);
         centerActorXY(pleaseWait);
+
+        // Инициализируем стиль текста таймера
+        initTimerStyle();
 
         delayCall("build_level", 0.2f);
     }
@@ -127,7 +140,6 @@ public class Level extends StageGame {
         Image bg = new Image(TRONgame.atlas.findRegion(region));
         addBackground(bg, true, false);
     }
-
 
 
     private void build() {
@@ -153,77 +165,50 @@ public class Level extends StageGame {
         while (count-- > 0) {
             world.step(1f / 60, 10, 10);
         }
+        joyStick = new JoyStick(mmToPx(10));
+        addOverlayChild(joyStick);
+        joyStick.setPosition(15, 15);
 
-            jumpGauge = new JumpGauge();
-            addOverlayChild(jumpGauge);
+        jumpBackBtn = new CButton(
+                new Image(TRONgame.atlas.findRegion("jump1")),
+                new Image(TRONgame.atlas.findRegion("jump1_down")),
+                mmToPx(10)
+        );
 
-            joyStick = new JoyStick(mmToPx(10));
-            addOverlayChild(joyStick);
-            joyStick.setPosition(15, 15);
+        addOverlayChild(jumpBackBtn);
 
-            jumpBackBtn = new CButton(
-                    new Image(TRONgame.atlas.findRegion("jump1")),
-                    new Image(TRONgame.atlas.findRegion("jump1_down")),
-                    mmToPx(10)
-            );
+        jumpForwardBtn = new CButton(
+                new Image(TRONgame.atlas.findRegion("jump2")),
+                new Image(TRONgame.atlas.findRegion("jump2_down")),
+                mmToPx(10)
+        );
 
-            addOverlayChild(jumpBackBtn);
+        addOverlayChild(jumpForwardBtn);
 
-            jumpForwardBtn = new CButton(
-                    new Image(TRONgame.atlas.findRegion("jump2")),
-                    new Image(TRONgame.atlas.findRegion("jump2_down")),
-                    mmToPx(10)
-            );
+        jumpForwardBtn.setPosition(getWidth() - jumpForwardBtn.getWidth() - 15, 15);
+        jumpBackBtn.setPosition(jumpForwardBtn.getX() - jumpBackBtn.getWidth() - 15, 15);
 
-            addOverlayChild(jumpForwardBtn);
-
-            jumpForwardBtn.setPosition(getWidth() - jumpForwardBtn.getWidth() - 15, 15);
-            jumpBackBtn.setPosition(jumpForwardBtn.getX() - jumpBackBtn.getWidth() - 15, 15);
-
-            jumpBackBtn.addListener(new ClickListener() {
-                @Override
-                public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
-                    if (state == PLAY) {
-                        if (player.isTouchedGround()) {
-//                            player.jumpBack(8);
-                            jumpGauge.start();
-                            return true;
-                        }
-                    }
-
-                    return super.touchDown(event, x, y, pointer, button);
+        jumpBackBtn.addListener(new ClickListener() {
+            @Override
+            public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
+                if (state == PLAY) {
+                    player.jumpBack(3.0f);
+                    return true;
                 }
+                return super.touchDown(event, x, y, pointer, button);
+            }
+        });
 
-                @Override
-                public void touchUp(InputEvent event, float x, float y, int pointer, int button) {
-                    float jumpValue = jumpGauge.getValue();
-                    player.jumpBack(jumpValue);
-
+        jumpForwardBtn.addListener(new ClickListener() {
+            @Override
+            public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
+                if (state == PLAY) {
+                    player.jumpForward(3.0f);
+                    return true;
                 }
-            });
-
-            jumpForwardBtn.addListener(new ClickListener(){
-                @Override
-                public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
-                    if (state == PLAY) {
-                        if (player.isTouchedGround()) {
-//                            player.jumpForward(8);
-//
-                            jumpGauge.start();
-                            return true;
-                        }
-                    }
-
-                    return super.touchDown(event, x, y, pointer, button);
-                }
-
-                @Override
-                public void touchUp(InputEvent event, float x, float y, int pointer, int button) {
-                    float jumpValue = jumpGauge.getValue();
-                    player.jumpForward(jumpValue);
-
-                }
-            });
+                return super.touchDown(event, x, y, pointer, button);
+            }
+        });
 
         levelFailedScreen = new LevelFailedScreen(getWidth(), getHeight());
         levelFailedScreen.addListener(new MessageListener() {
@@ -284,12 +269,12 @@ public class Level extends StageGame {
     protected void quitLevel() {
         call(ON_QUIT);
     }
-    
+
     public void setMusic(String name) {
         musicName = name;
         TRONgame.media.addMusic(name);
     }
-    
+
     public String getMusicName() {
         return musicName;
     }
@@ -302,10 +287,10 @@ public class Level extends StageGame {
         }
         if (world != null) world.dispose();
         map.dispose();
-               
+
         super.dispose();
     }
-    
+
     private ContactListener contactListener = new ContactListener() {
         @Override
         public void beginContact(Contact contact) {
@@ -325,57 +310,58 @@ public class Level extends StageGame {
 
             if (bodyA == player.car) {
                 UserData data = (UserData) bodyB.getUserData();
-                if (data!= null) {
-                    if (data.name.equals("land")) {
-                        player.touchGround();
-                        return;
-                    }
-                }
-            }if (bodyB == player.car) {
-                UserData data = (UserData) bodyA.getUserData();
-                if (data!= null) {
-                    if (data.name.equals("land")) {
-                        player.touchGround();
-                        return;
-                    }
-                }
-            }if (bodyA == player.frontWheel) {
-                UserData data = (UserData) bodyB.getUserData();
-                if (data!= null) {
-                    if (data.name.equals("land")) {
-                        player.touchGround();
-                        return;
-                    }
-                }
-            }if (bodyB == player.frontWheel) {
-                UserData data = (UserData) bodyA.getUserData();
-                if (data!= null) {
-                    if (data.name.equals("land")) {
-                        player.touchGround();
-                        return;
-                    }
-                }
-            }if (bodyA == player.rearWheel) {
-                UserData data = (UserData) bodyB.getUserData();
-                if (data!= null) {
-                    if (data.name.equals("land")) {
-                        player.touchGround();
-                        return;
-                    }
-                }
-            }if (bodyB == player.rearWheel) {
-                UserData data = (UserData) bodyA.getUserData();
-                if (data!= null) {
+                if (data != null) {
                     if (data.name.equals("land")) {
                         player.touchGround();
                         return;
                     }
                 }
             }
-
-
-
-
+            if (bodyB == player.car) {
+                UserData data = (UserData) bodyA.getUserData();
+                if (data != null) {
+                    if (data.name.equals("land")) {
+                        player.touchGround();
+                        return;
+                    }
+                }
+            }
+            if (bodyA == player.frontWheel) {
+                UserData data = (UserData) bodyB.getUserData();
+                if (data != null) {
+                    if (data.name.equals("land")) {
+                        player.touchGround();
+                        return;
+                    }
+                }
+            }
+            if (bodyB == player.frontWheel) {
+                UserData data = (UserData) bodyA.getUserData();
+                if (data != null) {
+                    if (data.name.equals("land")) {
+                        player.touchGround();
+                        return;
+                    }
+                }
+            }
+            if (bodyA == player.rearWheel) {
+                UserData data = (UserData) bodyB.getUserData();
+                if (data != null) {
+                    if (data.name.equals("land")) {
+                        player.touchGround();
+                        return;
+                    }
+                }
+            }
+            if (bodyB == player.rearWheel) {
+                UserData data = (UserData) bodyA.getUserData();
+                if (data != null) {
+                    if (data.name.equals("land")) {
+                        player.touchGround();
+                        return;
+                    }
+                }
+            }
 
 
         }
@@ -418,17 +404,14 @@ public class Level extends StageGame {
 
             if (name.equals("land")) {
                 createLands(layer.getObjects());
-            }
-            else if (name.equals("items")) {
+            } else if (name.equals("items")) {
                 createItems(layer.getObjects());
-            }
-            else {
-                TileLayer tLayer = new TileLayer(camera, map, name,stage.getBatch());
+            } else {
+                TileLayer tLayer = new TileLayer(camera, map, name, stage.getBatch());
                 addChild(tLayer);
             }
 
         }
-
 
 
     }
@@ -464,7 +447,7 @@ public class Level extends StageGame {
 
         FixtureDef fdef = new FixtureDef();
         PolygonShape shape = new PolygonShape();
-        shape.setAsBox(rectangle.width/2, rectangle.height/2);
+        shape.setAsBox(rectangle.width / 2, rectangle.height / 2);
 
         fdef.shape = shape;
         fdef.restitution = LAND_RESTITUTION;
@@ -473,7 +456,7 @@ public class Level extends StageGame {
 
         Body body = world.createBody(def);
         body.createFixture(fdef);
-        body.setTransform(rectangle.x + rectangle.width/2, rectangle.y + rectangle.height/2, 0);
+        body.setTransform(rectangle.x + rectangle.width / 2, rectangle.y + rectangle.height / 2, 0);
         shape.dispose();
 
         return body;
@@ -484,11 +467,13 @@ public class Level extends StageGame {
             TRONgame.media.playMusic(musicName, true);
         }
     }
+
     private void stopMusic() {
         if (musicName != null && musicHasLoaded) {
             TRONgame.media.stopMusic(musicName);
         }
     }
+
     private void pauseMusic() {
         if (musicName != null && musicHasLoaded) {
             TRONgame.media.pauseMusic(musicName);
@@ -500,6 +485,7 @@ public class Level extends StageGame {
         jumpBackBtn.setVisible(false);
         jumpForwardBtn.setVisible(false);
     }
+
     private void showButtons() {
         joyStick.setVisible(true);
         jumpBackBtn.setVisible(true);
@@ -517,9 +503,9 @@ public class Level extends StageGame {
     private void createLands(MapObjects objects) {
         Polygon polygon;
         Rectangle rectangle;
-        
+
         Array<Polygon> childs;
-        
+
         for (MapObject object : objects) {
             if (object instanceof PolygonMapObject) {
                 polygon = ((PolygonMapObject) object).getPolygon();
@@ -527,7 +513,7 @@ public class Level extends StageGame {
                 childs = getTriangles(polygon);
                 addPolygonLand(childs);
             } else if (object instanceof RectangleMapObject) {
-                rectangle = ((RectangleMapObject)object).getRectangle();
+                rectangle = ((RectangleMapObject) object).getRectangle();
                 addRectangleLand(rectangle);
             }
         }
@@ -545,7 +531,7 @@ public class Level extends StageGame {
 
         FixtureDef fdef = new FixtureDef();
         PolygonShape shape = new PolygonShape();
-        shape.setAsBox(rectangle.width/2, rectangle.height/2);
+        shape.setAsBox(rectangle.width / 2, rectangle.height / 2);
 
         fdef.shape = shape;
         fdef.restitution = LAND_RESTITUTION;
@@ -553,7 +539,7 @@ public class Level extends StageGame {
 
         Body body = world.createBody(def);
         body.createFixture(fdef);
-        body.setTransform(rectangle.x + rectangle.width/2, rectangle.y + rectangle.height/2, 0);
+        body.setTransform(rectangle.x + rectangle.width / 2, rectangle.y + rectangle.height / 2, 0);
         body.setUserData(new UserData(null, "land"));
         shape.dispose();
     }
@@ -590,7 +576,7 @@ public class Level extends StageGame {
 
         Polygon triangle;
 
-        int num = triangleIds.size/3;
+        int num = triangleIds.size / 3;
         Vector2 triPoints[];
         int i, j;
 
@@ -610,7 +596,7 @@ public class Level extends StageGame {
     }
 
     public static Vector2[] fromArray(float vertices[]) {
-        int num = vertices.length/2;
+        int num = vertices.length / 2;
         int i;
         Vector2 result[] = new Vector2[num];
 
@@ -654,17 +640,17 @@ public class Level extends StageGame {
         camera.position.x = player.getX();
         camera.position.y = player.getY();
 
-        if (camera.position.x - camera.viewportWidth/2 < 0) {
-            camera.position.x = camera.viewportWidth/2;
+        if (camera.position.x - camera.viewportWidth / 2 < 0) {
+            camera.position.x = camera.viewportWidth / 2;
         }
-        if (camera.position.x + camera.viewportWidth/2 > levelWidth) {
-            camera.position.x = levelWidth - camera.viewportWidth/2;
+        if (camera.position.x + camera.viewportWidth / 2 > levelWidth) {
+            camera.position.x = levelWidth - camera.viewportWidth / 2;
         }
-        if (camera.position.y - camera.viewportHeight/2 < 0) {
-            camera.position.y = camera.viewportHeight/2;
+        if (camera.position.y - camera.viewportHeight / 2 < 0) {
+            camera.position.y = camera.viewportHeight / 2;
         }
-        if (camera.position.y + camera.viewportHeight/2 > levelHeight) {
-            camera.position.y = levelHeight - camera.viewportHeight/2;
+        if (camera.position.y + camera.viewportHeight / 2 > levelHeight) {
+            camera.position.y = levelHeight - camera.viewportHeight / 2;
         }
 
     }
@@ -678,23 +664,106 @@ public class Level extends StageGame {
         actor.setX(x);
         actor.setY(y);
     }
-    
+
     protected void playerTouch(Body body) {
         UserData data = (UserData) body.getUserData();
-        
+        System.out.println("=== Touch ground DEBUG ===");
+        System.out.println("Player rotation: " + player.getRotation() + "°");
+
         if (data != null) {
             if (data.name.equals("land") && !player.isHasDestroyed()) {
-                if (player.getRotation() < -90 || player.getRotation() > 90) {
-                    player.destroy();
-                    TRONgame.media.playSound("crash.ogg");
-                    levelFailed();
+                // Проверяем, что машина перевернута
+                // Нормализуем угол в диапазон 0-360°
+                float normalizedRotation = player.getRotation() % 360;
+                if (normalizedRotation < 0) normalizedRotation += 360;
+
+                // Проверяем, что машина действительно перевернута (угол 120-240° - более щадящие)
+                boolean isUpsideDown = (normalizedRotation > 120 && normalizedRotation < 240);
+
+                if (isUpsideDown) {
+                    // Машина перевернута - запускаем таймер
+                    if (!isTimerRunning) {
+                        startUpsideDownTimer();
+                    }
+                    player.touchGround();
                 } else {
+                    // Машина выровнялась - останавливаем таймер
+                    if (isTimerRunning) {
+                        stopUpsideDownTimer();
+                    }
                     player.touchGround();
                 }
             }
         } else {
             if (body == finish) {
                 levelCompleted();
+            }
+        }
+    }
+
+    // Инициализация стиля текста таймера
+    private void initTimerStyle() {
+        timerStyle = new com.badlogic.gdx.scenes.scene2d.ui.Label.LabelStyle();
+        // Используем GROBOLD.ttf из папки fonts
+        try {
+            com.badlogic.gdx.graphics.g2d.freetype.FreeTypeFontGenerator generator =
+                    new com.badlogic.gdx.graphics.g2d.freetype.FreeTypeFontGenerator(
+                            com.badlogic.gdx.Gdx.files.internal("fonts/GROBOLD.ttf")
+                    );
+            com.badlogic.gdx.graphics.g2d.freetype.FreeTypeFontGenerator.FreeTypeFontParameter parameter =
+                    new com.badlogic.gdx.graphics.g2d.freetype.FreeTypeFontGenerator.FreeTypeFontParameter();
+            parameter.size = 30;
+            timerStyle.font = generator.generateFont(parameter);
+            generator.dispose();
+        } catch (Exception e) {
+            // Если не удалось загрузить GROBOLD.ttf, используем стандартный шрифт
+            System.out.println("Failed to load GROBOLD.ttf, using default font: " + e.getMessage());
+            timerStyle.font = new com.badlogic.gdx.graphics.g2d.BitmapFont();
+        }
+        timerStyle.fontColor = com.badlogic.gdx.graphics.Color.GOLD;
+
+        timerLabel = new com.badlogic.gdx.scenes.scene2d.ui.Label("", timerStyle);
+        timerLabel.setVisible(false);
+        addOverlayChild(timerLabel);
+        timerLabel.setPosition(20, getHeight() - 50);
+    }
+
+    // Методы для управления таймером переворота
+    private void startUpsideDownTimer() {
+        isTimerRunning = true;
+        upsideDownTimer = 0f;
+        timerLabel.setVisible(true);
+    }
+
+    private void stopUpsideDownTimer() {
+        isTimerRunning = false;
+        upsideDownTimer = 0f;
+        timerLabel.setVisible(false);
+    }
+
+    private void updateUpsideDownTimer(float delta) {
+        if (isTimerRunning) {
+            // Дополнительная проверка - если машина уже не перевернута, останавливаем таймер
+            float currentRotation = player.getRotation() % 360;
+            if (currentRotation < 0) currentRotation += 360;
+            boolean currentlyUpsideDown = (currentRotation > 120 && currentRotation < 240);
+
+            if (!currentlyUpsideDown) {
+                stopUpsideDownTimer();
+                return;
+            }
+
+            upsideDownTimer += delta;
+            float remainingTime = UPSIDE_DOWN_TIMEOUT - upsideDownTimer;
+
+            // Обновляем текст на экране
+            timerLabel.setText("UPSIDE DOWN! " + String.format("%.1f", remainingTime) + "s");
+
+            if (upsideDownTimer >= UPSIDE_DOWN_TIMEOUT) {
+                // Время истекло - проигрыш
+                player.destroy();
+                TRONgame.media.playSound("crash.ogg");
+                levelFailed();
             }
         }
     }
@@ -722,7 +791,6 @@ public class Level extends StageGame {
         addOverlayChild(levelFailedScreen);
         levelFailedScreen.start();
 
-        jumpGauge.setVisible(false);
         hideButtons();
 
         call(ON_FAILED);
@@ -779,7 +847,7 @@ public class Level extends StageGame {
 
                 if (actor != null) {
                     actor.setPosition(body.getPosition().x * WORLD_SCALE, body.getPosition().y * WORLD_SCALE);
-                    actor.setRotation(body.getAngle() * 180/3.14f);
+                    actor.setRotation(body.getAngle() * 180 / 3.14f);
                 }
             }
         }
@@ -806,8 +874,8 @@ public class Level extends StageGame {
 
             player.onKey(lFront, lBack);
 
-            jumpGauge.setX(getStageToOverlayX(player.getX()));
-            jumpGauge.setY(getStageToOverlayY(player.getY() + 20));
+            // Обновляем таймер переворота
+            updateUpsideDownTimer(delta);
 
             updateCamera();
 
@@ -848,8 +916,8 @@ public class Level extends StageGame {
             y += point.y;
         }
 
-        x = x/pointCount;
-        y = y/pointCount - 33;
+        x = x / pointCount;
+        y = y / pointCount - 33;
 
         return new Vector2(x, y);
     }
