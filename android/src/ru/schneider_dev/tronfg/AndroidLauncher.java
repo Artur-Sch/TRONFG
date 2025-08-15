@@ -42,6 +42,11 @@ public class AndroidLauncher extends AndroidApplication {
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FORCE_NOT_FULLSCREEN);
+        
+        // Флаги для совместимости с API 35
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            getWindow().setFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS, WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS);
+        }
 
         mainView = new RelativeLayout(this);
         setContentView(mainView);
@@ -60,7 +65,24 @@ public class AndroidLauncher extends AndroidApplication {
             config.stencil = 0; // Stencil bits
             config.numSamples = 0; // Anti-aliasing
             
+            // Дополнительные настройки для API 35
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                config.useWakelock = false;
+                config.useImmersiveMode = true;
+            }
+            
             View gameView = initializeForView(new TRONgame(gameCallback), config);
+            
+            // Настройки для API 35
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                // Принудительно устанавливаем слой для SurfaceView
+                if (gameView instanceof android.view.SurfaceView) {
+                    android.view.SurfaceView surfaceView = (android.view.SurfaceView) gameView;
+                    surfaceView.setZOrderOnTop(false);
+                    surfaceView.setZOrderMediaOverlay(false);
+                }
+            }
+            
             mainView.addView(gameView);
         } catch (Exception e) {
             android.util.Log.e("TRONFG", "Error initializing libGDX: " + e.getMessage(), e);

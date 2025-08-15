@@ -15,32 +15,22 @@ import com.badlogic.gdx.math.EarClippingTriangulator;
 import com.badlogic.gdx.math.Polygon;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
-import com.badlogic.gdx.physics.box2d.Body;
-import com.badlogic.gdx.physics.box2d.BodyDef;
+import com.badlogic.gdx.physics.box2d.*;
 import com.badlogic.gdx.physics.box2d.BodyDef.BodyType;
-import com.badlogic.gdx.physics.box2d.Box2DDebugRenderer;
-import com.badlogic.gdx.physics.box2d.Contact;
-import com.badlogic.gdx.physics.box2d.ContactImpulse;
-import com.badlogic.gdx.physics.box2d.ContactListener;
-import com.badlogic.gdx.physics.box2d.FixtureDef;
-import com.badlogic.gdx.physics.box2d.Manifold;
-import com.badlogic.gdx.physics.box2d.PolygonShape;
-import com.badlogic.gdx.physics.box2d.World;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.ui.Image;
+import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ShortArray;
 import com.boontaran.MessageListener;
 import com.boontaran.games.StageGame;
 import com.boontaran.games.tiled.TileLayer;
-
 import ru.schneider_dev.tronfg.Setting;
 import ru.schneider_dev.tronfg.TRONgame;
 import ru.schneider_dev.tronfg.controls.CButton;
 import ru.schneider_dev.tronfg.controls.JoyStick;
-import ru.schneider_dev.tronfg.controls.JumpGauge;
 import ru.schneider_dev.tronfg.player.IBody;
 import ru.schneider_dev.tronfg.player.Player;
 import ru.schneider_dev.tronfg.player.UserData;
@@ -52,7 +42,7 @@ import ru.schneider_dev.tronfg.screens.PausedScreen;
 public class Level extends StageGame {
     private String directory;
 
-    public static final  float WORLD_SCALE = 40;
+    public static final float WORLD_SCALE = 40;
 
     public static final int ON_RESTART = 1;
     public static final int ON_QUIT = 2;
@@ -68,15 +58,13 @@ public class Level extends StageGame {
 
     private int state = 1;
 
-    private JumpGauge jumpGauge;
-
     private int mapWidth, mapHeight, tilePixelWidth, tilePixelHeight, levelWidth, levelHeight;
 
     private Player player;
     private Body finish;
 
     private boolean moveFrontKey, moveBackKey;
-    private Image pleaseWait;
+    private Label pleaseWait;
 
     private JoyStick joyStick;
     private CButton jumpBackBtn, jumpForwardBtn;
@@ -99,12 +87,37 @@ public class Level extends StageGame {
     private LevelFailedScreen levelFailedScreen;
     private PausedScreen pausedScreen;
 
+    // Переменные для таймера переворота
+    private boolean isTimerRunning = false;
+    private float upsideDownTimer = 0f;
+    private static final float UPSIDE_DOWN_TIMEOUT = 2.0f; // 2 секунды
+
+    // Переменные для отображения текста таймера
+    private com.badlogic.gdx.scenes.scene2d.ui.Label timerLabel;
+    private com.badlogic.gdx.scenes.scene2d.ui.Label.LabelStyle timerStyle;
+
     public Level(String directory) {
         this.directory = directory;
 
-        pleaseWait = new Image(TRONgame.atlas.findRegion("please_wait"));
+        // Создаем Label с текстом "LOADING..." вместо изображения
+        Label.LabelStyle loadingStyle = new Label.LabelStyle(TRONgame.tr2nFont, new com.badlogic.gdx.graphics.Color(0.0f, 0.8f, 1.0f, 1.0f)); // Синий неоновый цвет
+        pleaseWait = new Label("LOADING...", loadingStyle);
+
+        // Убеждаемся, что Label видим и правильно позиционирован
+        pleaseWait.setVisible(true);
+        pleaseWait.setColor(1, 1, 1, 1); // Устанавливаем полную непрозрачность
+
+        // Сначала добавляем Label в сцену
         addOverlayChild(pleaseWait);
+
+        // Принудительно обновляем размер Label с учетом текста
+        pleaseWait.pack();
+
+        // Теперь центрируем с правильным размером
         centerActorXY(pleaseWait);
+
+        // Инициализируем стиль текста таймера
+        initTimerStyle();
 
         delayCall("build_level", 0.2f);
     }
@@ -127,7 +140,6 @@ public class Level extends StageGame {
         Image bg = new Image(TRONgame.atlas.findRegion(region));
         addBackground(bg, true, false);
     }
-
 
 
     private void build() {
@@ -153,77 +165,51 @@ public class Level extends StageGame {
         while (count-- > 0) {
             world.step(1f / 60, 10, 10);
         }
+        joyStick = new JoyStick(mmToPx(10));
+        addOverlayChild(joyStick);
+        joyStick.setPosition(15, 15);
 
-            jumpGauge = new JumpGauge();
-            addOverlayChild(jumpGauge);
+        Image rotateRightNormal = new Image(TRONgame.atlas.findRegion("jump_down"));
+        Image rotateRightPressed = new Image(TRONgame.atlas.findRegion("jump_down_down"));
 
-            joyStick = new JoyStick(mmToPx(10));
-            addOverlayChild(joyStick);
-            joyStick.setPosition(15, 15);
+        jumpForwardBtn = new CButton(rotateRightNormal, rotateRightPressed, mmToPx(10));
+        addOverlayChild(jumpForwardBtn);
 
-            jumpBackBtn = new CButton(
-                    new Image(TRONgame.atlas.findRegion("jump1")),
-                    new Image(TRONgame.atlas.findRegion("jump1_down")),
-                    mmToPx(10)
-            );
+        Image rotateLeftNormal = new Image(TRONgame.atlas.findRegion("jump_up"));
+        Image rotateLeftPressed = new Image(TRONgame.atlas.findRegion("jump_up_up"));
 
-            addOverlayChild(jumpBackBtn);
+        jumpBackBtn = new CButton(rotateLeftNormal, rotateLeftPressed, mmToPx(10));
+        addOverlayChild(jumpBackBtn);
 
-            jumpForwardBtn = new CButton(
-                    new Image(TRONgame.atlas.findRegion("jump2")),
-                    new Image(TRONgame.atlas.findRegion("jump2_down")),
-                    mmToPx(10)
-            );
+        addOverlayChild(jumpForwardBtn);
 
-            addOverlayChild(jumpForwardBtn);
+        float rightMargin = 50f;
+        float buttonSpacing = 30f;
 
-            jumpForwardBtn.setPosition(getWidth() - jumpForwardBtn.getWidth() - 15, 15);
-            jumpBackBtn.setPosition(jumpForwardBtn.getX() - jumpBackBtn.getWidth() - 15, 15);
+        jumpForwardBtn.setPosition(getWidth() - jumpForwardBtn.getWidth() - rightMargin, 15);
+        jumpBackBtn.setPosition(jumpForwardBtn.getX() - jumpBackBtn.getWidth() - buttonSpacing, 15);
 
-            jumpBackBtn.addListener(new ClickListener() {
-                @Override
-                public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
-                    if (state == PLAY) {
-                        if (player.isTouchedGround()) {
-//                            player.jumpBack(8);
-                            jumpGauge.start();
-                            return true;
-                        }
-                    }
-
-                    return super.touchDown(event, x, y, pointer, button);
+        jumpBackBtn.addListener(new ClickListener() {
+            @Override
+            public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
+                if (state == PLAY) {
+                    player.jumpBack(3.0f);
+                    return true;
                 }
+                return super.touchDown(event, x, y, pointer, button);
+            }
+        });
 
-                @Override
-                public void touchUp(InputEvent event, float x, float y, int pointer, int button) {
-                    float jumpValue = jumpGauge.getValue();
-                    player.jumpBack(jumpValue);
-
+        jumpForwardBtn.addListener(new ClickListener() {
+            @Override
+            public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
+                if (state == PLAY) {
+                    player.jumpForward(3.0f);
+                    return true;
                 }
-            });
-
-            jumpForwardBtn.addListener(new ClickListener(){
-                @Override
-                public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
-                    if (state == PLAY) {
-                        if (player.isTouchedGround()) {
-//                            player.jumpForward(8);
-//
-                            jumpGauge.start();
-                            return true;
-                        }
-                    }
-
-                    return super.touchDown(event, x, y, pointer, button);
-                }
-
-                @Override
-                public void touchUp(InputEvent event, float x, float y, int pointer, int button) {
-                    float jumpValue = jumpGauge.getValue();
-                    player.jumpForward(jumpValue);
-
-                }
-            });
+                return super.touchDown(event, x, y, pointer, button);
+            }
+        });
 
         levelFailedScreen = new LevelFailedScreen(getWidth(), getHeight());
         levelFailedScreen.addListener(new MessageListener() {
@@ -252,11 +238,14 @@ public class Level extends StageGame {
             @Override
             protected void receivedMessage(int message, Actor actor) {
                 if (message == PausedScreen.ON_RESUME) {
-                    TRONgame.media.playSound("click.ogg");
+                    TRONgame.media.playSound("new_click.ogg");
                     resumelevel();
                 } else if (message == PausedScreen.ON_QUIT) {
-                    TRONgame.media.playSound("click.ogg");
+                    TRONgame.media.playSound("new_click.ogg");
                     quitLevel();
+                } else if (message == PausedScreen.ON_RESTART) {
+                    TRONgame.media.playSound("new_click.ogg");
+                    restartLevel();
                 }
             }
         });
@@ -274,22 +263,87 @@ public class Level extends StageGame {
         state = PLAY;
 
         pausedScreen.hide();
+        pausedScreen.hideAllIcons(); // Скрываем все иконки
         delayCall("resumelevel2", 0.6f);
         showButtons();
         call(ON_RESUME);
 
-        playMusic();
+        // Синхронизируем с новой музыкой, выбранной в паузе
+        syncMusicWithPauseScreen();
+
+        // Воспроизводим музыку только если она не выключена глобально
+        if (!TRONgame.isSoundMuted) {
+            playMusic();
+        }
+    }
+
+    /**
+     * Синхронизирует музыку уровня с текущей выбранной в паузе
+     * Теперь проверяет, какая музыка играет в данный момент
+     */
+    private void syncMusicWithPauseScreen() {
+        try {
+            // Проверяем, какая музыка сейчас играет
+            String currentPlayingMusic = getCurrentlyPlayingMusic();
+            if (currentPlayingMusic != null && !currentPlayingMusic.equals(musicName)) {
+                // Если музыка изменилась, обновляем уровень
+                if (musicName != null && musicHasLoaded) {
+                    TRONgame.media.stopMusic(musicName);
+                }
+                musicName = currentPlayingMusic;
+                musicHasLoaded = true;
+            }
+        } catch (Exception e) {
+            // Игнорируем ошибки
+            System.out.println("Cannot sync music with pause screen: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Определяет, какая музыка сейчас играет
+     */
+    private String getCurrentlyPlayingMusic() {
+        // Проверяем все возможные игровые мелодии
+        String[] gameMusic = {"new_music1.ogg", "new_music2.ogg", "new_music3.ogg"};
+
+        for (String music : gameMusic) {
+            try {
+                // Пытаемся получить музыку из Media
+                com.badlogic.gdx.audio.Music musicObj = TRONgame.media.getMusic(music);
+                if (musicObj != null && musicObj.isPlaying()) {
+                    return music;
+                }
+            } catch (Exception e) {
+                // Игнорируем ошибки
+            }
+        }
+
+        // Если ничего не играет, возвращаем текущую музыку уровня
+        return musicName;
     }
 
     protected void quitLevel() {
         call(ON_QUIT);
     }
-    
+
+    /**
+     * Перезапускает уровень с новой случайной музыкой
+     */
+    protected void restartLevel() {
+        // Останавливаем текущую музыку
+        if (musicName != null && musicHasLoaded) {
+            TRONgame.media.stopMusic(musicName);
+        }
+
+        // Вызываем событие перезапуска
+        call(ON_RESTART);
+    }
+
     public void setMusic(String name) {
         musicName = name;
         TRONgame.media.addMusic(name);
     }
-    
+
     public String getMusicName() {
         return musicName;
     }
@@ -302,10 +356,10 @@ public class Level extends StageGame {
         }
         if (world != null) world.dispose();
         map.dispose();
-               
+
         super.dispose();
     }
-    
+
     private ContactListener contactListener = new ContactListener() {
         @Override
         public void beginContact(Contact contact) {
@@ -325,57 +379,58 @@ public class Level extends StageGame {
 
             if (bodyA == player.car) {
                 UserData data = (UserData) bodyB.getUserData();
-                if (data!= null) {
-                    if (data.name.equals("land")) {
-                        player.touchGround();
-                        return;
-                    }
-                }
-            }if (bodyB == player.car) {
-                UserData data = (UserData) bodyA.getUserData();
-                if (data!= null) {
-                    if (data.name.equals("land")) {
-                        player.touchGround();
-                        return;
-                    }
-                }
-            }if (bodyA == player.frontWheel) {
-                UserData data = (UserData) bodyB.getUserData();
-                if (data!= null) {
-                    if (data.name.equals("land")) {
-                        player.touchGround();
-                        return;
-                    }
-                }
-            }if (bodyB == player.frontWheel) {
-                UserData data = (UserData) bodyA.getUserData();
-                if (data!= null) {
-                    if (data.name.equals("land")) {
-                        player.touchGround();
-                        return;
-                    }
-                }
-            }if (bodyA == player.rearWheel) {
-                UserData data = (UserData) bodyB.getUserData();
-                if (data!= null) {
-                    if (data.name.equals("land")) {
-                        player.touchGround();
-                        return;
-                    }
-                }
-            }if (bodyB == player.rearWheel) {
-                UserData data = (UserData) bodyA.getUserData();
-                if (data!= null) {
+                if (data != null) {
                     if (data.name.equals("land")) {
                         player.touchGround();
                         return;
                     }
                 }
             }
-
-
-
-
+            if (bodyB == player.car) {
+                UserData data = (UserData) bodyA.getUserData();
+                if (data != null) {
+                    if (data.name.equals("land")) {
+                        player.touchGround();
+                        return;
+                    }
+                }
+            }
+            if (bodyA == player.frontWheel) {
+                UserData data = (UserData) bodyB.getUserData();
+                if (data != null) {
+                    if (data.name.equals("land")) {
+                        player.touchGround();
+                        return;
+                    }
+                }
+            }
+            if (bodyB == player.frontWheel) {
+                UserData data = (UserData) bodyA.getUserData();
+                if (data != null) {
+                    if (data.name.equals("land")) {
+                        player.touchGround();
+                        return;
+                    }
+                }
+            }
+            if (bodyA == player.rearWheel) {
+                UserData data = (UserData) bodyB.getUserData();
+                if (data != null) {
+                    if (data.name.equals("land")) {
+                        player.touchGround();
+                        return;
+                    }
+                }
+            }
+            if (bodyB == player.rearWheel) {
+                UserData data = (UserData) bodyA.getUserData();
+                if (data != null) {
+                    if (data.name.equals("land")) {
+                        player.touchGround();
+                        return;
+                    }
+                }
+            }
 
 
         }
@@ -418,17 +473,14 @@ public class Level extends StageGame {
 
             if (name.equals("land")) {
                 createLands(layer.getObjects());
-            }
-            else if (name.equals("items")) {
+            } else if (name.equals("items")) {
                 createItems(layer.getObjects());
-            }
-            else {
-                TileLayer tLayer = new TileLayer(camera, map, name,stage.getBatch());
+            } else {
+                TileLayer tLayer = new TileLayer(camera, map, name, stage.getBatch());
                 addChild(tLayer);
             }
 
         }
-
 
 
     }
@@ -464,7 +516,7 @@ public class Level extends StageGame {
 
         FixtureDef fdef = new FixtureDef();
         PolygonShape shape = new PolygonShape();
-        shape.setAsBox(rectangle.width/2, rectangle.height/2);
+        shape.setAsBox(rectangle.width / 2, rectangle.height / 2);
 
         fdef.shape = shape;
         fdef.restitution = LAND_RESTITUTION;
@@ -473,22 +525,24 @@ public class Level extends StageGame {
 
         Body body = world.createBody(def);
         body.createFixture(fdef);
-        body.setTransform(rectangle.x + rectangle.width/2, rectangle.y + rectangle.height/2, 0);
+        body.setTransform(rectangle.x + rectangle.width / 2, rectangle.y + rectangle.height / 2, 0);
         shape.dispose();
 
         return body;
     }
 
     private void playMusic() {
-        if (musicName != null && musicHasLoaded) {
+        if (musicName != null && musicHasLoaded && !TRONgame.isSoundMuted) {
             TRONgame.media.playMusic(musicName, true);
         }
     }
+
     private void stopMusic() {
         if (musicName != null && musicHasLoaded) {
             TRONgame.media.stopMusic(musicName);
         }
     }
+
     private void pauseMusic() {
         if (musicName != null && musicHasLoaded) {
             TRONgame.media.pauseMusic(musicName);
@@ -500,6 +554,7 @@ public class Level extends StageGame {
         jumpBackBtn.setVisible(false);
         jumpForwardBtn.setVisible(false);
     }
+
     private void showButtons() {
         joyStick.setVisible(true);
         jumpBackBtn.setVisible(true);
@@ -517,9 +572,9 @@ public class Level extends StageGame {
     private void createLands(MapObjects objects) {
         Polygon polygon;
         Rectangle rectangle;
-        
+
         Array<Polygon> childs;
-        
+
         for (MapObject object : objects) {
             if (object instanceof PolygonMapObject) {
                 polygon = ((PolygonMapObject) object).getPolygon();
@@ -527,7 +582,7 @@ public class Level extends StageGame {
                 childs = getTriangles(polygon);
                 addPolygonLand(childs);
             } else if (object instanceof RectangleMapObject) {
-                rectangle = ((RectangleMapObject)object).getRectangle();
+                rectangle = ((RectangleMapObject) object).getRectangle();
                 addRectangleLand(rectangle);
             }
         }
@@ -545,7 +600,7 @@ public class Level extends StageGame {
 
         FixtureDef fdef = new FixtureDef();
         PolygonShape shape = new PolygonShape();
-        shape.setAsBox(rectangle.width/2, rectangle.height/2);
+        shape.setAsBox(rectangle.width / 2, rectangle.height / 2);
 
         fdef.shape = shape;
         fdef.restitution = LAND_RESTITUTION;
@@ -553,7 +608,7 @@ public class Level extends StageGame {
 
         Body body = world.createBody(def);
         body.createFixture(fdef);
-        body.setTransform(rectangle.x + rectangle.width/2, rectangle.y + rectangle.height/2, 0);
+        body.setTransform(rectangle.x + rectangle.width / 2, rectangle.y + rectangle.height / 2, 0);
         body.setUserData(new UserData(null, "land"));
         shape.dispose();
     }
@@ -590,7 +645,7 @@ public class Level extends StageGame {
 
         Polygon triangle;
 
-        int num = triangleIds.size/3;
+        int num = triangleIds.size / 3;
         Vector2 triPoints[];
         int i, j;
 
@@ -610,7 +665,7 @@ public class Level extends StageGame {
     }
 
     public static Vector2[] fromArray(float vertices[]) {
-        int num = vertices.length/2;
+        int num = vertices.length / 2;
         int i;
         Vector2 result[] = new Vector2[num];
 
@@ -654,17 +709,17 @@ public class Level extends StageGame {
         camera.position.x = player.getX();
         camera.position.y = player.getY();
 
-        if (camera.position.x - camera.viewportWidth/2 < 0) {
-            camera.position.x = camera.viewportWidth/2;
+        if (camera.position.x - camera.viewportWidth / 2 < 0) {
+            camera.position.x = camera.viewportWidth / 2;
         }
-        if (camera.position.x + camera.viewportWidth/2 > levelWidth) {
-            camera.position.x = levelWidth - camera.viewportWidth/2;
+        if (camera.position.x + camera.viewportWidth / 2 > levelWidth) {
+            camera.position.x = levelWidth - camera.viewportWidth / 2;
         }
-        if (camera.position.y - camera.viewportHeight/2 < 0) {
-            camera.position.y = camera.viewportHeight/2;
+        if (camera.position.y - camera.viewportHeight / 2 < 0) {
+            camera.position.y = camera.viewportHeight / 2;
         }
-        if (camera.position.y + camera.viewportHeight/2 > levelHeight) {
-            camera.position.y = levelHeight - camera.viewportHeight/2;
+        if (camera.position.y + camera.viewportHeight / 2 > levelHeight) {
+            camera.position.y = levelHeight - camera.viewportHeight / 2;
         }
 
     }
@@ -678,23 +733,112 @@ public class Level extends StageGame {
         actor.setX(x);
         actor.setY(y);
     }
-    
+
     protected void playerTouch(Body body) {
         UserData data = (UserData) body.getUserData();
-        
         if (data != null) {
             if (data.name.equals("land") && !player.isHasDestroyed()) {
-                if (player.getRotation() < -90 || player.getRotation() > 90) {
-                    player.destroy();
-                    TRONgame.media.playSound("crash.ogg");
-                    levelFailed();
+                // Проверяем, что машина перевернута
+                // Нормализуем угол в диапазон 0-360°
+                float normalizedRotation = player.getRotation() % 360;
+                if (normalizedRotation < 0) normalizedRotation += 360;
+
+                // Проверяем, что машина действительно перевернута (угол 120-240° - более щадящие)
+                boolean isUpsideDown = (normalizedRotation > 120 && normalizedRotation < 240);
+
+                if (isUpsideDown) {
+                    // Машина перевернута - запускаем таймер
+                    if (!isTimerRunning) {
+                        startUpsideDownTimer();
+                    }
+                    player.touchGround();
                 } else {
+                    // Машина выровнялась - останавливаем таймер
+                    if (isTimerRunning) {
+                        stopUpsideDownTimer();
+                    }
                     player.touchGround();
                 }
             }
         } else {
             if (body == finish) {
-                levelCompleted();
+                // Дополнительная проверка - убеждаемся что игрок действительно достиг финиша
+                if (player != null && !player.isHasDestroyed() && state == PLAY) {
+                    levelCompleted();
+                }
+            }
+        }
+    }
+
+    // Инициализация стиля текста таймера
+    private void initTimerStyle() {
+        timerStyle = new com.badlogic.gdx.scenes.scene2d.ui.Label.LabelStyle();
+        // Используем GROBOLD.ttf из папки fonts
+        try {
+            com.badlogic.gdx.graphics.g2d.freetype.FreeTypeFontGenerator generator =
+                    new com.badlogic.gdx.graphics.g2d.freetype.FreeTypeFontGenerator(
+                            com.badlogic.gdx.Gdx.files.internal("fonts/GROBOLD.ttf")
+                    );
+            com.badlogic.gdx.graphics.g2d.freetype.FreeTypeFontGenerator.FreeTypeFontParameter parameter =
+                    new com.badlogic.gdx.graphics.g2d.freetype.FreeTypeFontGenerator.FreeTypeFontParameter();
+            parameter.size = 30;
+            timerStyle.font = generator.generateFont(parameter);
+            generator.dispose();
+        } catch (Exception e) {
+            timerStyle.font = new com.badlogic.gdx.graphics.g2d.BitmapFont();
+        }
+        timerStyle.fontColor = com.badlogic.gdx.graphics.Color.GOLD;
+
+        timerLabel = new com.badlogic.gdx.scenes.scene2d.ui.Label("", timerStyle);
+        timerLabel.setVisible(false);
+        addOverlayChild(timerLabel);
+        timerLabel.setPosition(20, getHeight() - 50);
+    }
+
+    // Методы для управления таймером переворота
+    private void startUpsideDownTimer() {
+        isTimerRunning = true;
+        upsideDownTimer = 0f;
+        timerLabel.setVisible(true);
+    }
+
+    private void stopUpsideDownTimer() {
+        isTimerRunning = false;
+        upsideDownTimer = 0f;
+        timerLabel.setVisible(false);
+    }
+
+    private void updateUpsideDownTimer(float delta) {
+        // Не обновляем таймер если уровень завершен или проигран
+        if (state == LEVEL_COMPLETED || state == LEVEL_FAILED) {
+            if (isTimerRunning) {
+                stopUpsideDownTimer();
+            }
+            return;
+        }
+
+        if (isTimerRunning) {
+            // Дополнительная проверка - если машина уже не перевернута, останавливаем таймер
+            float currentRotation = player.getRotation() % 360;
+            if (currentRotation < 0) currentRotation += 360;
+            boolean currentlyUpsideDown = (currentRotation > 120 && currentRotation < 240);
+
+            if (!currentlyUpsideDown) {
+                stopUpsideDownTimer();
+                return;
+            }
+
+            upsideDownTimer += delta;
+            float remainingTime = UPSIDE_DOWN_TIMEOUT - upsideDownTimer;
+
+            // Обновляем текст на экране
+            timerLabel.setText("UPSIDE DOWN! " + String.format("%.1f", remainingTime) + "s");
+
+            if (upsideDownTimer >= UPSIDE_DOWN_TIMEOUT) {
+                // Время истекло - проигрыш
+                player.destroy();
+                TRONgame.media.playSound("crash.ogg");
+                levelFailed();
             }
         }
     }
@@ -703,6 +847,10 @@ public class Level extends StageGame {
         if (state == LEVEL_COMPLETED) return;
         state = LEVEL_COMPLETED;
 
+        // Останавливаем все таймеры и процессы
+        if (isTimerRunning) {
+            stopUpsideDownTimer();
+        }
         stopMusic();
 
         hideButtons();
@@ -710,8 +858,7 @@ public class Level extends StageGame {
         addOverlayChild(levelCompletedScreen);
         levelCompletedScreen.start();
 
-        TRONgame.media.playSound("level_completed.ogg");
-        TRONgame.media.playMusic("level_win.ogg", false);
+        TRONgame.media.playSound("level_win_new.ogg");
     }
 
     private void levelFailed() {
@@ -722,7 +869,6 @@ public class Level extends StageGame {
         addOverlayChild(levelFailedScreen);
         levelFailedScreen.start();
 
-        jumpGauge.setVisible(false);
         hideButtons();
 
         call(ON_FAILED);
@@ -779,7 +925,7 @@ public class Level extends StageGame {
 
                 if (actor != null) {
                     actor.setPosition(body.getPosition().x * WORLD_SCALE, body.getPosition().y * WORLD_SCALE);
-                    actor.setRotation(body.getAngle() * 180/3.14f);
+                    actor.setRotation(body.getAngle() * 180 / 3.14f);
                 }
             }
         }
@@ -792,10 +938,27 @@ public class Level extends StageGame {
         if (musicName != null && !musicHasLoaded) {
             if (TRONgame.media.update()) {
                 musicHasLoaded = true;
-                playMusic();
+                // Воспроизводим музыку только если она не выключена глобально
+                if (!TRONgame.isSoundMuted) {
+                    playMusic();
+                }
             }
         }
         if (!hasBeenBuilt) {
+            return;
+        }
+
+        // Обновляем физику даже после проигрыша для анимации разбрасывания колес
+        if (state != PAUSED) {
+            float delta2 = 0.033f;
+            if (delta < delta2)
+                delta2 = delta;
+
+            updateWorld(delta2);
+        }
+
+        // Не обновляем игровую логику если уровень завершен или проигран
+        if (state == LEVEL_COMPLETED || state == LEVEL_FAILED) {
             return;
         }
 
@@ -806,8 +969,8 @@ public class Level extends StageGame {
 
             player.onKey(lFront, lBack);
 
-            jumpGauge.setX(getStageToOverlayX(player.getX()));
-            jumpGauge.setY(getStageToOverlayY(player.getY() + 20));
+            // Обновляем таймер переворота
+            updateUpsideDownTimer(delta);
 
             updateCamera();
 
@@ -815,14 +978,6 @@ public class Level extends StageGame {
                 levelFailed();
             }
 
-        }
-
-        if (state != PAUSED) {
-            float delta2 = 0.033f;
-            if (delta < delta2)
-                delta2 = delta;
-
-            updateWorld(delta2);
         }
     }
 
@@ -848,8 +1003,8 @@ public class Level extends StageGame {
             y += point.y;
         }
 
-        x = x/pointCount;
-        y = y/pointCount - 33;
+        x = x / pointCount;
+        y = y / pointCount - 33;
 
         return new Vector2(x, y);
     }
@@ -857,8 +1012,17 @@ public class Level extends StageGame {
     @Override
     public boolean keyUp(int keycode) {
         if (keycode == Input.Keys.ESCAPE || keycode == Input.Keys.BACK) {
-            TRONgame.media.playSound("click.ogg");
-            pauseLevel();
+            if (state == PAUSED) {
+                // Если игра в паузе, кнопка "Назад" возвращает к игре
+                TRONgame.media.playSound("new_click.ogg");
+                resumelevel();
+                return true;
+            } else if (state == PLAY) {
+                // Если игра идет, кнопка "Назад" входит в паузу
+                TRONgame.media.playSound("new_click.ogg");
+                pauseLevel();
+                return true;
+            }
         }
 
         return super.keyUp(keycode);

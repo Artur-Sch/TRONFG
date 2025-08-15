@@ -6,13 +6,7 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.math.Polygon;
 import com.badlogic.gdx.math.Vector2;
-import com.badlogic.gdx.physics.box2d.Body;
-import com.badlogic.gdx.physics.box2d.BodyDef;
-import com.badlogic.gdx.physics.box2d.CircleShape;
-import com.badlogic.gdx.physics.box2d.FixtureDef;
-import com.badlogic.gdx.physics.box2d.Joint;
-import com.badlogic.gdx.physics.box2d.PolygonShape;
-import com.badlogic.gdx.physics.box2d.World;
+import com.badlogic.gdx.physics.box2d.*;
 import com.badlogic.gdx.physics.box2d.joints.RevoluteJointDef;
 import com.badlogic.gdx.scenes.scene2d.Group;
 import com.badlogic.gdx.scenes.scene2d.ui.Image;
@@ -20,17 +14,16 @@ import com.badlogic.gdx.utils.Array;
 import com.boontaran.douglasPeucker.DouglasPeucker;
 import com.boontaran.games.ActorClip;
 import com.boontaran.marchingSquare.MarchingSquare;
-
-import java.util.ArrayList;
-
 import ru.schneider_dev.tronfg.Setting;
 import ru.schneider_dev.tronfg.TRONgame;
 import ru.schneider_dev.tronfg.levels.Level;
 
+import java.util.ArrayList;
+
 
 public class Player extends ActorClip implements IBody {
 
-    private Image carImg, frontWheelImage,rearWheelImg;
+    private Image carImg, frontWheelImage, rearWheelImg;
     private Group frontWheelCont, rearWheelCont;
     public Body car, frontWheel, rearWheel;
     private Joint frontWheelJoint, rearWheelJoint;
@@ -38,7 +31,6 @@ public class Player extends ActorClip implements IBody {
     private boolean hasDestroyed = false;
     private boolean destroyOnNextUpdate = false;
     private boolean isTouchGround = true;
-    private float jumpImpulse = Setting.JUMP_IMPULSE;
     private float jumpWait = 0;
     private Level level;
 
@@ -48,7 +40,7 @@ public class Player extends ActorClip implements IBody {
 
         carImg = new Image(TRONgame.atlas.findRegion("rover"));
         childs.addActor(carImg);
-        carImg.setX(-carImg.getWidth()/2);
+        carImg.setX(-carImg.getWidth() / 2);
         carImg.setY(-15);
     }
 
@@ -84,7 +76,6 @@ public class Player extends ActorClip implements IBody {
         Array<Polygon> triangles = Level.getTriangles(new Polygon(vertices));
         car = createBodyFromTriangles(world, triangles);
         car.setTransform(((getX()) / Level.WORLD_SCALE), (getY() / Level.WORLD_SCALE), 0);
-//        car.setTransform((getX()), (getY()), 0);
 
         frontWheel = createWheel(world, 22 / Level.WORLD_SCALE);
         frontWheel.setTransform(car.getPosition().x + 62 / Level.WORLD_SCALE, car.getPosition().y + 18 / Level.WORLD_SCALE, 0);
@@ -93,8 +84,8 @@ public class Player extends ActorClip implements IBody {
         frontWheelImage = new Image(TRONgame.atlas.findRegion("rear_wheel"));
 
         frontWheelCont.addActor(frontWheelImage);
-        frontWheelImage.setX(-frontWheelImage.getWidth()/2);
-        frontWheelImage.setY(-frontWheelImage.getHeight()/2);
+        frontWheelImage.setX(-frontWheelImage.getWidth() / 2);
+        frontWheelImage.setY(-frontWheelImage.getHeight() / 2);
 
         getParent().addActor(frontWheelCont);
 
@@ -108,15 +99,15 @@ public class Player extends ActorClip implements IBody {
 
 
         rearWheel = createWheel(world, 22 / Level.WORLD_SCALE);
-        rearWheel.setTransform(car.getPosition().x - 68 / Level.WORLD_SCALE, car.getPosition().y + 18  / Level.WORLD_SCALE, 0);
+        rearWheel.setTransform(car.getPosition().x - 68 / Level.WORLD_SCALE, car.getPosition().y + 18 / Level.WORLD_SCALE, 0);
         rDef = new RevoluteJointDef();
 
 
         rearWheelCont = new Group();
         rearWheelImg = new Image(TRONgame.atlas.findRegion("front_wheel"));
         rearWheelCont.addActor(rearWheelImg);
-        rearWheelImg.setX(-rearWheelImg.getWidth()/2);
-        rearWheelImg.setY(-rearWheelImg.getHeight()/2);
+        rearWheelImg.setX(-rearWheelImg.getWidth() / 2);
+        rearWheelImg.setY(-rearWheelImg.getHeight() / 2);
 
         getParent().addActor(rearWheelCont);
         data = new UserData();
@@ -144,8 +135,7 @@ public class Player extends ActorClip implements IBody {
 
         fDef.shape = shape;// радиус
         fDef.restitution = 0.2f;// эластичность
-//        fDef.friction = 0.7f;// коэф трения
-        fDef.friction = 0.8f;// коэф трения
+        fDef.friction = 0.9f;// коэф трения
         fDef.density = 0.4f;// плотность
 
         body.createFixture(fDef);
@@ -168,7 +158,7 @@ public class Player extends ActorClip implements IBody {
         Pixmap allPixmap = bodyOutLine.getTextureData().consumePixmap();
 
         Pixmap pixmap = new Pixmap(w, h, Pixmap.Format.RGBA8888);
-        pixmap.drawPixmap(allPixmap,0,0,x,y,w,h);
+        pixmap.drawPixmap(allPixmap, 0, 0, x, y, w, h);
 
         allPixmap.dispose();
 
@@ -177,9 +167,9 @@ public class Player extends ActorClip implements IBody {
         w = pixmap.getWidth();
         h = pixmap.getHeight();
 
-        int [][] map;
+        int[][] map;
         map = new int[w][h];
-        for (x=0; x < w; x++) {
+        for (x = 0; x < w; x++) {
             for (y = 0; y < h; y++) {
                 pixel = pixmap.getPixel(x, y);
                 if ((pixel & 0x000000ff) == 0) {
@@ -223,7 +213,7 @@ public class Player extends ActorClip implements IBody {
 
     public void onKey(boolean moveFrontKey, boolean moveBackKey) {
         float torque = Setting.WHEEL_TORQUE;
-        float maxAV = 20;
+        float maxAV = 25;
 
         if (moveFrontKey) {
             if (-rearWheel.getAngularVelocity() < maxAV) {
@@ -244,38 +234,19 @@ public class Player extends ActorClip implements IBody {
     }
 
     public void jumpBack(float value) {
-        if (value < 0.2f) value = 0.2f;
-
-        car.applyLinearImpulse(0, jumpImpulse * value,
-                car.getWorldCenter().x + 5 / Level.WORLD_SCALE,
-                car.getWorldCenter().y, true);
-//        car.applyLinearImpulse(0, 8,
-//                car.getWorldCenter().x+1,
-//                car.getWorldCenter().y, true);
-        isTouchGround = false;
-        jumpWait = 0.3f;
+        // Наклон назад (поворот по часовой стрелке)
+        float torque = 200f; // Сила крутящего момента
+        car.applyTorque(torque * value, true);
     }
 
-    public void jumpForward(float value){
-
-        if (value < 0.2f) value = 0.2f;
-
-        car.applyLinearImpulse(0, jumpImpulse * value,
-                car.getWorldCenter().x - 4 / Level.WORLD_SCALE,
-                car.getWorldCenter().y, true);
-//        car.applyLinearImpulse(0, 8,
-//                car.getWorldCenter().x -1,
-//                car.getWorldCenter().y, true);
-        isTouchGround = false;
-        jumpWait = 0.3f;
+    public void jumpForward(float value) {
+        // Наклон вперед (поворот против часовой стрелки)
+        float torque = -200f; // Сила крутящего момента (отрицательная)
+        car.applyTorque(torque * value, true);
     }
 
     @Override
     public void act(float delta) {
-        if (jumpWait > 0) {
-            jumpWait -= delta;
-        }
-
         if (destroyOnNextUpdate) {
             destroyOnNextUpdate = false;
             world.destroyJoint(frontWheelJoint);

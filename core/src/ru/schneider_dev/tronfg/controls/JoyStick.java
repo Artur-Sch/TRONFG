@@ -22,21 +22,16 @@ public class JoyStick extends Group {
         idle = new Image(TRONgame.atlas.findRegion("joystick"));
         addActor(idle);
 
-        float scale = 1;
-
-        if (idle.getHeight() < minHeight) {
-            scale = minHeight/idle.getHeight();
-        }
-        idle.setHeight(idle.getHeight()*scale);
-        idle.setWidth(idle.getWidth()*scale);
-
         setSize(idle.getWidth(), idle.getHeight());
 
         right = new Image(TRONgame.atlas.findRegion("joystick_right"));
         right.setSize(getWidth(), getHeight());
+        right.setPosition(0, 0);
         addActor(right);
+        
         left = new Image(TRONgame.atlas.findRegion("joystick_left"));
         left.setSize(getWidth(), getHeight());
+        left.setPosition(0, 0);
         addActor(left);
 
         setDir(IDLE);
@@ -84,9 +79,15 @@ public class JoyStick extends Group {
         right.setVisible(false);
         left.setVisible(false);
 
-        if (dir == IDLE) idle.setVisible(true);
-        if (dir == RIGHT) right.setVisible(true);
-        if (dir == LEFT) left.setVisible(true);
+        if (dir == IDLE) {
+            idle.setVisible(true);
+        }
+        if (dir == RIGHT) {
+            right.setVisible(true);
+        }
+        if (dir == LEFT) {
+            left.setVisible(true);
+        }
 
         direction = dir;
     }

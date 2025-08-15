@@ -7,11 +7,16 @@ import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.actions.Actions;
 import com.badlogic.gdx.scenes.scene2d.ui.Image;
 import com.badlogic.gdx.scenes.scene2d.ui.ImageButton;
+import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.boontaran.MessageEvent;
 
 import ru.schneider_dev.tronfg.TRONgame;
+import ru.schneider_dev.tronfg.controls.TextButton;
+
+import static ru.schneider_dev.tronfg.controls.TextButton.NEON_WHITE;
+import static ru.schneider_dev.tronfg.controls.TextButton.NEON_YELLOW;
 
 
 public class LevelFailedScreen extends Group {
@@ -19,55 +24,67 @@ public class LevelFailedScreen extends Group {
     public static final int ON_RETRY = 1;
     public static final int ON_QUIT = 2;
 
-    private Image title;
-    private ImageButton retry, quit;
+    private Label title;
+    private TextButton retry, quit;
     private float w, h;
 
     public LevelFailedScreen(float w, float h) {
         this.w = w;
         this.h = h;
 
-        title = new Image(TRONgame.atlas.findRegion("game_over"));
-        title.setX((w-title.getWidth())/2);
-        title.setY(h);
+        // Создаем текстовый заголовок GAME OVER неоновым красным цветом
+        Label.LabelStyle titleStyle = new Label.LabelStyle(TRONgame.tr2nFont, new com.badlogic.gdx.graphics.Color(1, 0, 0, 1)); // Неоновый красный
+        title = new Label("GAME OVER", titleStyle);
+        title.setFontScale(1.8f);
         addActor(title);
 
-        retry = new ImageButton(
-                new TextureRegionDrawable(TRONgame.atlas.findRegion("retry_btn")),
-                new TextureRegionDrawable(TRONgame.atlas.findRegion("retry_btn_down"))    );
+        // Принудительно обновляем размеры и центрируем по X
+        title.setX((w - title.getPrefWidth()) / 2);
+        title.setY(h);
+
+        // Создаем кнопку RESTART неоновым белым цветом
+        retry = new TextButton("RESTART", TRONgame.tr2nFont, NEON_WHITE, NEON_YELLOW); // Светло-серый для нажатия
 
         addActor(retry);
-        retry.setY((h-retry.getHeight())/2-60);
-        retry.setX(w/2-retry.getWidth()-30);
-        retry.setColor(1,1,1,0);
+
+        // Принудительно обновляем размеры перед позиционированием
+        retry.updateSize();
+
+        retry.setY((h - retry.getHeight()) / 2 - 30); // Поднимаем выше
+        retry.setX(w / 2 - retry.getWidth() / 2); // Центрируем по горизонтали
 
         retry.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
                 fire(new MessageEvent(ON_RETRY));
-                TRONgame.media.playSound("click.ogg");
+                TRONgame.media.playSound("new_click.ogg");
             }
         });
 
-        quit = new ImageButton(
-                new TextureRegionDrawable(TRONgame.atlas.findRegion("quit_btn")),
-                new TextureRegionDrawable(TRONgame.atlas.findRegion("quit_btn_down"))
-        );
+        // Создаем кнопку EXIT неоновым красным цветом
+        quit = new TextButton("EXIT", TRONgame.tr2nFont,
+                new com.badlogic.gdx.graphics.Color(1, 0, 0, 1), // Красный цвет
+                new com.badlogic.gdx.graphics.Color(0.8f, 0, 0, 1)); // Темно-красный для нажатия
 
         addActor(quit);
-        quit.setY((h-quit.getHeight())/2-60);
-        quit.setX(w/2 + 30);
-        quit.setColor(1,1,1,0);
+
+        // Принудительно обновляем размеры перед позиционированием
+        quit.updateSize();
+
+        quit.setY((h - quit.getHeight()) / 2 - 90); // Опускаем ниже
+        quit.setX(w / 2 - quit.getWidth() / 2); // Центрируем по горизонтали
+        quit.setColor(1, 0, 0, 0); // Красный с прозрачностью 0
         quit.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
                 fire(new MessageEvent(ON_QUIT));
-                TRONgame.media.playSound("click.ogg");
+                TRONgame.media.playSound("new_click.ogg");
             }
         });
     }
+
     public void start() {
-        title.addAction(Actions.moveTo(title.getX(), h-title.getHeight()-50, 0.5f, Interpolation.swingOut));
+        title.addAction(Actions.moveTo(title.getX(), h - title.getPrefHeight() - 100, 0.5f, Interpolation.swingOut));
         retry.addAction(Actions.alpha(1, 0.3f));
         quit.addAction(Actions.alpha(1, 0.3f));
     }

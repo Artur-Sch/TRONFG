@@ -48,8 +48,8 @@ public class LevelIcon extends Group {
         lockImg.setY((getHeight()-lockImg.getHeight())/2);
 
         Label.LabelStyle style = new Label.LabelStyle();
-        style.font = TRONgame.font40;
-        style.fontColor = new Color(0x000000ff);
+        style.font = TRONgame.font24; // Используем меньший шрифт для цифр
+        style.fontColor = new Color(Color.GOLD);// Неоновый желтый цвет
 
         label = new Label(id + "", style);
         label.setX((getWidth() - label.getWidth())/2);

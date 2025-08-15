@@ -42,6 +42,33 @@ public class Media {
         assetManager.unload("musics/" + name);
     }
 
+    /**
+     * Получает объект Music по имени файла
+     * @param name имя файла музыки
+     * @return объект Music или null если не найден
+     */
+    public Music getMusic(String name) {
+        try {
+            return assetManager.get("musics/" + name, Music.class);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * Проверяет, играет ли музыка с указанным именем
+     * @param name имя файла музыки
+     * @return true если музыка играет, false в противном случае
+     */
+    public boolean isMusicPlaying(String name) {
+        try {
+            Music music = assetManager.get("musics/" + name, Music.class);
+            return music != null && music.isPlaying();
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     public boolean update() {
         return assetManager.update();
     }
