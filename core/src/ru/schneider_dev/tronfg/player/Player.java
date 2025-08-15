@@ -6,13 +6,7 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.math.Polygon;
 import com.badlogic.gdx.math.Vector2;
-import com.badlogic.gdx.physics.box2d.Body;
-import com.badlogic.gdx.physics.box2d.BodyDef;
-import com.badlogic.gdx.physics.box2d.CircleShape;
-import com.badlogic.gdx.physics.box2d.FixtureDef;
-import com.badlogic.gdx.physics.box2d.Joint;
-import com.badlogic.gdx.physics.box2d.PolygonShape;
-import com.badlogic.gdx.physics.box2d.World;
+import com.badlogic.gdx.physics.box2d.*;
 import com.badlogic.gdx.physics.box2d.joints.RevoluteJointDef;
 import com.badlogic.gdx.scenes.scene2d.Group;
 import com.badlogic.gdx.scenes.scene2d.ui.Image;
@@ -20,12 +14,11 @@ import com.badlogic.gdx.utils.Array;
 import com.boontaran.douglasPeucker.DouglasPeucker;
 import com.boontaran.games.ActorClip;
 import com.boontaran.marchingSquare.MarchingSquare;
-
-import java.util.ArrayList;
-
 import ru.schneider_dev.tronfg.Setting;
 import ru.schneider_dev.tronfg.TRONgame;
 import ru.schneider_dev.tronfg.levels.Level;
+
+import java.util.ArrayList;
 
 
 public class Player extends ActorClip implements IBody {
@@ -38,7 +31,6 @@ public class Player extends ActorClip implements IBody {
     private boolean hasDestroyed = false;
     private boolean destroyOnNextUpdate = false;
     private boolean isTouchGround = true;
-    private float jumpImpulse = Setting.JUMP_IMPULSE;
     private float jumpWait = 0;
     private Level level;
 
@@ -84,7 +76,6 @@ public class Player extends ActorClip implements IBody {
         Array<Polygon> triangles = Level.getTriangles(new Polygon(vertices));
         car = createBodyFromTriangles(world, triangles);
         car.setTransform(((getX()) / Level.WORLD_SCALE), (getY() / Level.WORLD_SCALE), 0);
-//        car.setTransform((getX()), (getY()), 0);
 
         frontWheel = createWheel(world, 22 / Level.WORLD_SCALE);
         frontWheel.setTransform(car.getPosition().x + 62 / Level.WORLD_SCALE, car.getPosition().y + 18 / Level.WORLD_SCALE, 0);
@@ -246,22 +237,16 @@ public class Player extends ActorClip implements IBody {
         // Наклон назад (поворот по часовой стрелке)
         float torque = 200f; // Сила крутящего момента
         car.applyTorque(torque * value, true);
-        System.out.println("Back button pressed - applying torque: " + torque);
     }
 
     public void jumpForward(float value) {
         // Наклон вперед (поворот против часовой стрелки)
         float torque = -200f; // Сила крутящего момента (отрицательная)
         car.applyTorque(torque * value, true);
-        System.out.println("Forward button pressed - applying torque: " + torque);
     }
 
     @Override
     public void act(float delta) {
-        if (jumpWait > 0) {
-            jumpWait -= delta;
-        }
-
         if (destroyOnNextUpdate) {
             destroyOnNextUpdate = false;
             world.destroyJoint(frontWheelJoint);

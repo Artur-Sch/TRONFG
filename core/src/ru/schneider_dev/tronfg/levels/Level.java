@@ -15,35 +15,22 @@ import com.badlogic.gdx.math.EarClippingTriangulator;
 import com.badlogic.gdx.math.Polygon;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
-
-import java.lang.Math;
-
-import com.badlogic.gdx.physics.box2d.Body;
-import com.badlogic.gdx.physics.box2d.BodyDef;
+import com.badlogic.gdx.physics.box2d.*;
 import com.badlogic.gdx.physics.box2d.BodyDef.BodyType;
-import com.badlogic.gdx.physics.box2d.Box2DDebugRenderer;
-import com.badlogic.gdx.physics.box2d.Contact;
-import com.badlogic.gdx.physics.box2d.ContactImpulse;
-import com.badlogic.gdx.physics.box2d.ContactListener;
-import com.badlogic.gdx.physics.box2d.FixtureDef;
-import com.badlogic.gdx.physics.box2d.Manifold;
-import com.badlogic.gdx.physics.box2d.PolygonShape;
-import com.badlogic.gdx.physics.box2d.World;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.ui.Image;
+import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ShortArray;
 import com.boontaran.MessageListener;
 import com.boontaran.games.StageGame;
 import com.boontaran.games.tiled.TileLayer;
-
 import ru.schneider_dev.tronfg.Setting;
 import ru.schneider_dev.tronfg.TRONgame;
 import ru.schneider_dev.tronfg.controls.CButton;
 import ru.schneider_dev.tronfg.controls.JoyStick;
-
 import ru.schneider_dev.tronfg.player.IBody;
 import ru.schneider_dev.tronfg.player.Player;
 import ru.schneider_dev.tronfg.player.UserData;
@@ -77,7 +64,7 @@ public class Level extends StageGame {
     private Body finish;
 
     private boolean moveFrontKey, moveBackKey;
-    private Image pleaseWait;
+    private Label pleaseWait;
 
     private JoyStick joyStick;
     private CButton jumpBackBtn, jumpForwardBtn;
@@ -103,7 +90,7 @@ public class Level extends StageGame {
     // Переменные для таймера переворота
     private boolean isTimerRunning = false;
     private float upsideDownTimer = 0f;
-    private static final float UPSIDE_DOWN_TIMEOUT = 3.0f; // 3 секунд
+    private static final float UPSIDE_DOWN_TIMEOUT = 2.0f; // 2 секунды
 
     // Переменные для отображения текста таймера
     private com.badlogic.gdx.scenes.scene2d.ui.Label timerLabel;
@@ -112,8 +99,21 @@ public class Level extends StageGame {
     public Level(String directory) {
         this.directory = directory;
 
-        pleaseWait = new Image(TRONgame.atlas.findRegion("please_wait"));
+        // Создаем Label с текстом "LOADING..." вместо изображения
+        Label.LabelStyle loadingStyle = new Label.LabelStyle(TRONgame.tr2nFont, new com.badlogic.gdx.graphics.Color(0.0f, 0.8f, 1.0f, 1.0f)); // Синий неоновый цвет
+        pleaseWait = new Label("LOADING...", loadingStyle);
+
+        // Убеждаемся, что Label видим и правильно позиционирован
+        pleaseWait.setVisible(true);
+        pleaseWait.setColor(1, 1, 1, 1); // Устанавливаем полную непрозрачность
+
+        // Сначала добавляем Label в сцену
         addOverlayChild(pleaseWait);
+
+        // Принудительно обновляем размер Label с учетом текста
+        pleaseWait.pack();
+
+        // Теперь центрируем с правильным размером
         centerActorXY(pleaseWait);
 
         // Инициализируем стиль текста таймера
@@ -169,24 +169,25 @@ public class Level extends StageGame {
         addOverlayChild(joyStick);
         joyStick.setPosition(15, 15);
 
-        jumpBackBtn = new CButton(
-                new Image(TRONgame.atlas.findRegion("jump1")),
-                new Image(TRONgame.atlas.findRegion("jump1_down")),
-                mmToPx(10)
-        );
+        Image rotateRightNormal = new Image(TRONgame.atlas.findRegion("jump_down"));
+        Image rotateRightPressed = new Image(TRONgame.atlas.findRegion("jump_down_down"));
 
+        jumpForwardBtn = new CButton(rotateRightNormal, rotateRightPressed, mmToPx(10));
+        addOverlayChild(jumpForwardBtn);
+
+        Image rotateLeftNormal = new Image(TRONgame.atlas.findRegion("jump_up"));
+        Image rotateLeftPressed = new Image(TRONgame.atlas.findRegion("jump_up_up"));
+
+        jumpBackBtn = new CButton(rotateLeftNormal, rotateLeftPressed, mmToPx(10));
         addOverlayChild(jumpBackBtn);
-
-        jumpForwardBtn = new CButton(
-                new Image(TRONgame.atlas.findRegion("jump2")),
-                new Image(TRONgame.atlas.findRegion("jump2_down")),
-                mmToPx(10)
-        );
 
         addOverlayChild(jumpForwardBtn);
 
-        jumpForwardBtn.setPosition(getWidth() - jumpForwardBtn.getWidth() - 15, 15);
-        jumpBackBtn.setPosition(jumpForwardBtn.getX() - jumpBackBtn.getWidth() - 15, 15);
+        float rightMargin = 50f;
+        float buttonSpacing = 30f;
+
+        jumpForwardBtn.setPosition(getWidth() - jumpForwardBtn.getWidth() - rightMargin, 15);
+        jumpBackBtn.setPosition(jumpForwardBtn.getX() - jumpBackBtn.getWidth() - buttonSpacing, 15);
 
         jumpBackBtn.addListener(new ClickListener() {
             @Override
@@ -237,11 +238,14 @@ public class Level extends StageGame {
             @Override
             protected void receivedMessage(int message, Actor actor) {
                 if (message == PausedScreen.ON_RESUME) {
-                    TRONgame.media.playSound("click.ogg");
+                    TRONgame.media.playSound("new_click.ogg");
                     resumelevel();
                 } else if (message == PausedScreen.ON_QUIT) {
-                    TRONgame.media.playSound("click.ogg");
+                    TRONgame.media.playSound("new_click.ogg");
                     quitLevel();
+                } else if (message == PausedScreen.ON_RESTART) {
+                    TRONgame.media.playSound("new_click.ogg");
+                    restartLevel();
                 }
             }
         });
@@ -259,15 +263,80 @@ public class Level extends StageGame {
         state = PLAY;
 
         pausedScreen.hide();
+        pausedScreen.hideAllIcons(); // Скрываем все иконки
         delayCall("resumelevel2", 0.6f);
         showButtons();
         call(ON_RESUME);
 
-        playMusic();
+        // Синхронизируем с новой музыкой, выбранной в паузе
+        syncMusicWithPauseScreen();
+
+        // Воспроизводим музыку только если она не выключена глобально
+        if (!TRONgame.isSoundMuted) {
+            playMusic();
+        }
+    }
+
+    /**
+     * Синхронизирует музыку уровня с текущей выбранной в паузе
+     * Теперь проверяет, какая музыка играет в данный момент
+     */
+    private void syncMusicWithPauseScreen() {
+        try {
+            // Проверяем, какая музыка сейчас играет
+            String currentPlayingMusic = getCurrentlyPlayingMusic();
+            if (currentPlayingMusic != null && !currentPlayingMusic.equals(musicName)) {
+                // Если музыка изменилась, обновляем уровень
+                if (musicName != null && musicHasLoaded) {
+                    TRONgame.media.stopMusic(musicName);
+                }
+                musicName = currentPlayingMusic;
+                musicHasLoaded = true;
+            }
+        } catch (Exception e) {
+            // Игнорируем ошибки
+            System.out.println("Cannot sync music with pause screen: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Определяет, какая музыка сейчас играет
+     */
+    private String getCurrentlyPlayingMusic() {
+        // Проверяем все возможные игровые мелодии
+        String[] gameMusic = {"new_music1.ogg", "new_music2.ogg", "new_music3.ogg"};
+
+        for (String music : gameMusic) {
+            try {
+                // Пытаемся получить музыку из Media
+                com.badlogic.gdx.audio.Music musicObj = TRONgame.media.getMusic(music);
+                if (musicObj != null && musicObj.isPlaying()) {
+                    return music;
+                }
+            } catch (Exception e) {
+                // Игнорируем ошибки
+            }
+        }
+
+        // Если ничего не играет, возвращаем текущую музыку уровня
+        return musicName;
     }
 
     protected void quitLevel() {
         call(ON_QUIT);
+    }
+
+    /**
+     * Перезапускает уровень с новой случайной музыкой
+     */
+    protected void restartLevel() {
+        // Останавливаем текущую музыку
+        if (musicName != null && musicHasLoaded) {
+            TRONgame.media.stopMusic(musicName);
+        }
+
+        // Вызываем событие перезапуска
+        call(ON_RESTART);
     }
 
     public void setMusic(String name) {
@@ -463,7 +532,7 @@ public class Level extends StageGame {
     }
 
     private void playMusic() {
-        if (musicName != null && musicHasLoaded) {
+        if (musicName != null && musicHasLoaded && !TRONgame.isSoundMuted) {
             TRONgame.media.playMusic(musicName, true);
         }
     }
@@ -667,9 +736,6 @@ public class Level extends StageGame {
 
     protected void playerTouch(Body body) {
         UserData data = (UserData) body.getUserData();
-        System.out.println("=== Touch ground DEBUG ===");
-        System.out.println("Player rotation: " + player.getRotation() + "°");
-
         if (data != null) {
             if (data.name.equals("land") && !player.isHasDestroyed()) {
                 // Проверяем, что машина перевернута
@@ -696,7 +762,10 @@ public class Level extends StageGame {
             }
         } else {
             if (body == finish) {
-                levelCompleted();
+                // Дополнительная проверка - убеждаемся что игрок действительно достиг финиша
+                if (player != null && !player.isHasDestroyed() && state == PLAY) {
+                    levelCompleted();
+                }
             }
         }
     }
@@ -716,8 +785,6 @@ public class Level extends StageGame {
             timerStyle.font = generator.generateFont(parameter);
             generator.dispose();
         } catch (Exception e) {
-            // Если не удалось загрузить GROBOLD.ttf, используем стандартный шрифт
-            System.out.println("Failed to load GROBOLD.ttf, using default font: " + e.getMessage());
             timerStyle.font = new com.badlogic.gdx.graphics.g2d.BitmapFont();
         }
         timerStyle.fontColor = com.badlogic.gdx.graphics.Color.GOLD;
@@ -742,6 +809,14 @@ public class Level extends StageGame {
     }
 
     private void updateUpsideDownTimer(float delta) {
+        // Не обновляем таймер если уровень завершен или проигран
+        if (state == LEVEL_COMPLETED || state == LEVEL_FAILED) {
+            if (isTimerRunning) {
+                stopUpsideDownTimer();
+            }
+            return;
+        }
+
         if (isTimerRunning) {
             // Дополнительная проверка - если машина уже не перевернута, останавливаем таймер
             float currentRotation = player.getRotation() % 360;
@@ -772,6 +847,10 @@ public class Level extends StageGame {
         if (state == LEVEL_COMPLETED) return;
         state = LEVEL_COMPLETED;
 
+        // Останавливаем все таймеры и процессы
+        if (isTimerRunning) {
+            stopUpsideDownTimer();
+        }
         stopMusic();
 
         hideButtons();
@@ -779,8 +858,7 @@ public class Level extends StageGame {
         addOverlayChild(levelCompletedScreen);
         levelCompletedScreen.start();
 
-        TRONgame.media.playSound("level_completed.ogg");
-        TRONgame.media.playMusic("level_win.ogg", false);
+        TRONgame.media.playSound("level_win_new.ogg");
     }
 
     private void levelFailed() {
@@ -860,10 +938,27 @@ public class Level extends StageGame {
         if (musicName != null && !musicHasLoaded) {
             if (TRONgame.media.update()) {
                 musicHasLoaded = true;
-                playMusic();
+                // Воспроизводим музыку только если она не выключена глобально
+                if (!TRONgame.isSoundMuted) {
+                    playMusic();
+                }
             }
         }
         if (!hasBeenBuilt) {
+            return;
+        }
+
+        // Обновляем физику даже после проигрыша для анимации разбрасывания колес
+        if (state != PAUSED) {
+            float delta2 = 0.033f;
+            if (delta < delta2)
+                delta2 = delta;
+
+            updateWorld(delta2);
+        }
+
+        // Не обновляем игровую логику если уровень завершен или проигран
+        if (state == LEVEL_COMPLETED || state == LEVEL_FAILED) {
             return;
         }
 
@@ -883,14 +978,6 @@ public class Level extends StageGame {
                 levelFailed();
             }
 
-        }
-
-        if (state != PAUSED) {
-            float delta2 = 0.033f;
-            if (delta < delta2)
-                delta2 = delta;
-
-            updateWorld(delta2);
         }
     }
 
@@ -925,8 +1012,17 @@ public class Level extends StageGame {
     @Override
     public boolean keyUp(int keycode) {
         if (keycode == Input.Keys.ESCAPE || keycode == Input.Keys.BACK) {
-            TRONgame.media.playSound("click.ogg");
-            pauseLevel();
+            if (state == PAUSED) {
+                // Если игра в паузе, кнопка "Назад" возвращает к игре
+                TRONgame.media.playSound("new_click.ogg");
+                resumelevel();
+                return true;
+            } else if (state == PLAY) {
+                // Если игра идет, кнопка "Назад" входит в паузу
+                TRONgame.media.playSound("new_click.ogg");
+                pauseLevel();
+                return true;
+            }
         }
 
         return super.keyUp(keycode);
