@@ -1,4 +1,26 @@
 <resources>
+    <!-- Основные стили для всех устройств -->
+    
+    <!-- Базовые размеры для телефонов -->
+    <dimen name="button_size">48dp</dimen>
+    <dimen name="text_size_large">18sp</dimen>
+    <dimen name="text_size_medium">16sp</dimen>
+    <dimen name="text_size_small">14sp</dimen>
+    
+    <!-- Базовые отступы для телефонов -->
+    <dimen name="margin_large">24dp</dimen>
+    <dimen name="margin_medium">16dp</dimen>
+    <dimen name="margin_small">8dp</dimen>
+    
+    <!-- Базовые размеры UI элементов -->
+    <dimen name="icon_size_large">56dp</dimen>
+    <dimen name="icon_size_medium">48dp</dimen>
+    <dimen name="icon_size_small">40dp</dimen>
+    
+    <!-- Флаги для определения типа устройства -->
+    <bool name="isTablet">false</bool>
+    <bool name="isLargeScreen">false</bool>
+    <bool name="isExtraLargeScreen">false</bool>
 
     <style name="GdxTheme" parent="android:Theme">
 		<item name="android:windowBackground">@android:color/transparent</item>
@@ -6,7 +28,9 @@
         <item name="android:windowAnimationStyle">@android:style/Animation</item>
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowContentOverlay">@null</item>
-        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowFullscreen">false</item>
+        <item name="android:windowTranslucentStatus">false</item>
+        <item name="android:windowTranslucentNavigation">false</item>
     </style>
 
 </resources>

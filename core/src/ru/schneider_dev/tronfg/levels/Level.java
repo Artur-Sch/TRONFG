@@ -43,7 +43,6 @@ public class Level extends StageGame {
     private String directory;
 
     public static final float WORLD_SCALE = 40;
-
     public static final int ON_RESTART = 1;
     public static final int ON_QUIT = 2;
     public static final int ON_COMPLETED = 3;
@@ -95,6 +94,9 @@ public class Level extends StageGame {
     // Переменные для отображения текста таймера
     private com.badlogic.gdx.scenes.scene2d.ui.Label timerLabel;
     private com.badlogic.gdx.scenes.scene2d.ui.Label.LabelStyle timerStyle;
+
+    // Коэффициент масштабирования камеры (больше значение = больше отдаление)
+    private static final float CAMERA_ZOOM_FACTOR = 1.0f; // 1.0 = нормальный масштаб, 1.3 = отдаление на 30%
 
     public Level(String directory) {
         this.directory = directory;
@@ -708,6 +710,11 @@ public class Level extends StageGame {
     private void updateCamera() {
         camera.position.x = player.getX();
         camera.position.y = player.getY();
+
+        // Применяем масштабирование для отдаления
+        camera.viewportWidth = getWidth() * CAMERA_ZOOM_FACTOR;
+        camera.viewportHeight = getHeight() * CAMERA_ZOOM_FACTOR;
+        camera.update();
 
         if (camera.position.x - camera.viewportWidth / 2 < 0) {
             camera.position.x = camera.viewportWidth / 2;
