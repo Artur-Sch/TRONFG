@@ -26,6 +26,7 @@ public class AndroidLauncher extends AndroidApplication {
 
     private RelativeLayout mainView;
 
+
     // private AdView bannerView;
     private ViewGroup bannerContainer;
     private RelativeLayout.LayoutParams bannerParams;
@@ -50,6 +51,8 @@ public class AndroidLauncher extends AndroidApplication {
 
         mainView = new RelativeLayout(this);
         setContentView(mainView);
+        
+
         
         try {
             // Настройки OpenGL для совместимости с API 35
@@ -273,4 +276,11 @@ public class AndroidLauncher extends AndroidApplication {
 
     //     }
     // };
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        
+
+    }
 }

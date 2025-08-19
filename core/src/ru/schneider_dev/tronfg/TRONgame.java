@@ -26,10 +26,12 @@ import com.badlogic.gdx.utils.I18NBundle;
 import com.boontaran.games.StageGame;
 import ru.schneider_dev.tronfg.levels.Level;
 import ru.schneider_dev.tronfg.media.Media;
-import ru.schneider_dev.tronfg.screens.Intro;
+import ru.schneider_dev.tronfg.screens.IntroScreen;
 import ru.schneider_dev.tronfg.screens.LevelList;
 import ru.schneider_dev.tronfg.screens.GameCompletedScreen;
+import ru.schneider_dev.tronfg.screens.ScoreScreen;
 import ru.schneider_dev.tronfg.utils.Data;
+
 
 import java.util.Locale;
 import java.util.Random;
@@ -57,16 +59,18 @@ public class TRONgame extends Game {
     public static Data data;
     public static boolean isSoundMuted = false;
 
+
     public static I18NBundle bundle;
     private String path_to_atlas;
 
     private GameCallback gameCallback;
 
     public static Media media;
-    private Intro intro;
+    private IntroScreen introScreen;
     private LevelList levelList;
     private Level level;
     private GameCompletedScreen gameCompletedScreen;
+    private ScoreScreen scoreScreen;
     private int lastLevelId;
 
     // Массив с именами игровой музыки для случайного выбора
@@ -150,6 +154,7 @@ public class TRONgame extends Game {
         assetManager.load("musics/new_music1.ogg", Music.class);
         assetManager.load("musics/new_music2.ogg", Music.class);
         assetManager.load("musics/new_music3.ogg", Music.class);
+        assetManager.load("musics/grid_reflection.ogg", Music.class);
         assetManager.load("sounds/new_click.ogg", Sound.class);
         assetManager.load("sounds/crash.ogg", Sound.class);
         assetManager.load("sounds/level_win_new.ogg", Sound.class);
@@ -218,22 +223,25 @@ public class TRONgame extends Game {
     }
 
     private void exitApp() {
-        // Останавливаем музыку меню при выходе
-        media.stopMusic("new_menu.ogg");
+        // Выход из приложения
         Gdx.app.exit();
     }
 
     private void showIntro() {
-        intro = new Intro();
-        setScreen(intro);
+        introScreen = new IntroScreen();
+        setScreen(introScreen);
 
-        intro.setCallback(new StageGame.Callback() {
+        introScreen.start();
+        introScreen.setCallback(new StageGame.Callback() {
             @Override
             public void call(int code) {
-                if (code == Intro.ON_PLAY) {
-                    showLevelList();
+                if (code == IntroScreen.ON_PLAY) {
                     hideIntro();
-                } else if (code == Intro.ON_BACK) {
+                    showLevelList();
+                } else if (code == IntroScreen.ON_SCORE) {
+                    hideIntro();
+                    showScoreScreen(1); // 1 = Intro
+                } else if (code == IntroScreen.ON_BACK) {
                     exitApp();
                 }
             }
@@ -241,7 +249,7 @@ public class TRONgame extends Game {
     }
 
     private void hideIntro() {
-        intro = null;
+        introScreen = null;
     }
 
     private void showLevelList() {
@@ -261,6 +269,9 @@ public class TRONgame extends Game {
                 } else if (code == LevelList.ON_LEVEL_SELECTED) {
                     showLevel(levelList.getSelectedLevelId());
                     hideLevelList();
+                } else if (code == LevelList.ON_SCORE) {
+                    hideLevelList();
+                    showScoreScreen(2); // 2 = LevelList
                 } else if (code == LevelList.ON_OPEN_MARKET) {
                     gameCallback.sendMessage(OPEN_MARKET);
                 } else if (code == LevelList.ON_SHARE) {
@@ -311,6 +322,12 @@ public class TRONgame extends Game {
                     hideLevel();
                     showLevelList();
                 } else if (code == Level.ON_COMPLETED) {
+                    // Сохраняем время прохождения уровня
+                    if (level != null) {
+                        float levelTime = level.getLevelTimer();
+                        data.saveLevelTime(lastLevelId, levelTime);
+                    }
+                    
                     // Сохраняем текущую музыку для следующего уровня
                     String currentMusic = level.getMusicName();
                     updateProgress();
@@ -349,7 +366,6 @@ public class TRONgame extends Game {
     private void showGameCompleted() {
         gameCompletedScreen = new GameCompletedScreen();
         setScreen(gameCompletedScreen);
-        
         // Инициализируем финальный экран
         gameCompletedScreen.start();
 
@@ -369,6 +385,35 @@ public class TRONgame extends Game {
         if (gameCompletedScreen != null) {
             gameCompletedScreen.hide();
             gameCompletedScreen = null;
+        }
+    }
+
+    private void showScoreScreen(int sourceScreen) {
+        scoreScreen = new ScoreScreen(sourceScreen);
+        setScreen(scoreScreen);
+
+        scoreScreen.setCallback(new StageGame.Callback() {
+            @Override
+            public void call(int code) {
+                if (code == ScoreScreen.ON_BACK_TO_INTRO) {
+                    hideScoreScreen();
+                    showIntro();
+                } else if (code == ScoreScreen.ON_BACK_TO_LEVEL_LIST) {
+                    hideScoreScreen();
+                    showLevelList();
+                } else if (code == ScoreScreen.ON_BACK) {
+                    // Fallback - возвращаемся в Intro
+                    hideScoreScreen();
+                    showIntro();
+                }
+            }
+        });
+    }
+
+    private void hideScoreScreen() {
+        if (scoreScreen != null) {
+            scoreScreen.dispose();
+            scoreScreen = null;
         }
     }
 

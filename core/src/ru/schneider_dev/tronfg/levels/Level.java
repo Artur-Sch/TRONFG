@@ -41,6 +41,7 @@ import ru.schneider_dev.tronfg.screens.PausedScreen;
 
 public class Level extends StageGame {
     private String directory;
+    private int levelId;
 
     public static final float WORLD_SCALE = 40;
     public static final int ON_RESTART = 1;
@@ -95,11 +96,18 @@ public class Level extends StageGame {
     private com.badlogic.gdx.scenes.scene2d.ui.Label timerLabel;
     private com.badlogic.gdx.scenes.scene2d.ui.Label.LabelStyle timerStyle;
 
+    // Переменные для таймера прохождения уровня
+    private com.badlogic.gdx.scenes.scene2d.ui.Label levelTimerLabel;
+    private com.badlogic.gdx.scenes.scene2d.ui.Label.LabelStyle levelTimerStyle;
+    private float levelTimer = 0f;
+    private boolean levelTimerRunning = false;
+
     // Коэффициент масштабирования камеры (больше значение = больше отдаление)
     private static final float CAMERA_ZOOM_FACTOR = 1.0f; // 1.0 = нормальный масштаб, 1.3 = отдаление на 30%
 
     public Level(String directory) {
         this.directory = directory;
+        this.levelId = extractLevelId(directory);
 
         // Создаем Label с текстом "LOADING..." вместо изображения
         Label.LabelStyle loadingStyle = new Label.LabelStyle(TRONgame.tr2nFont, new com.badlogic.gdx.graphics.Color(0.0f, 0.8f, 1.0f, 1.0f)); // Синий неоновый цвет
@@ -225,12 +233,19 @@ public class Level extends StageGame {
             }
         });
 
-        levelCompletedScreen = new LevelCompletedScreen(getWidth(), getHeight());
+        levelCompletedScreen = new LevelCompletedScreen(getWidth(), getHeight(), levelId, 0f);
         levelCompletedScreen.addListener(new MessageListener() {
             @Override
             protected void receivedMessage(int message, Actor actor) {
                 if (message == LevelCompletedScreen.ON_DONE) {
-                    call(ON_COMPLETED);
+                    // Уровень пройден - сохраняем время и возвращаемся к выбору уровней
+                    saveLevelCompletion();
+                    call(ON_QUIT);
+                } else if (message == LevelCompletedScreen.ON_RESTART) {
+                    restartLevel();
+                } else if (message == LevelCompletedScreen.ON_NEXT) {
+                    // Переходим к следующему уровню
+                    goToNextLevel();
                 }
             }
         });
@@ -259,6 +274,39 @@ public class Level extends StageGame {
 
         updateCamera();
 
+        // Запускаем таймер уровня
+        startLevelTimer();
+
+        // Обновляем позицию таймера уровня
+        updateLevelTimerPosition();
+
+    }
+
+    /**
+     * Сохраняет завершение уровня
+     */
+    private void saveLevelCompletion() {
+        // Сохраняем время прохождения уровня
+        if (TRONgame.data != null) {
+            float levelTime = getLevelTimer();
+            TRONgame.data.saveLevelTime(levelId, levelTime);
+            System.out.println("Level " + levelId + " completed in " + levelTime + " seconds (saved via DONE)");
+            
+            // Обновляем прогресс игры чтобы следующий уровень стал доступным
+            int newProgress = levelId + 1;
+            if (newProgress > TRONgame.data.getProgress()) {
+                TRONgame.data.setProgress(newProgress);
+                System.out.println("Progress updated to level " + newProgress);
+            }
+        }
+    }
+
+    /**
+     * Переходит к следующему уровню
+     */
+    private void goToNextLevel() {
+        // Вызываем ON_COMPLETED чтобы TRONgame обработал переход к следующему уровню
+        call(ON_COMPLETED);
     }
 
     private void resumelevel() {
@@ -269,6 +317,9 @@ public class Level extends StageGame {
         delayCall("resumelevel2", 0.6f);
         showButtons();
         call(ON_RESUME);
+
+        // Возобновляем таймер уровня
+        levelTimerRunning = true;
 
         // Синхронизируем с новой музыкой, выбранной в паузе
         syncMusicWithPauseScreen();
@@ -729,6 +780,8 @@ public class Level extends StageGame {
             camera.position.y = levelHeight - camera.viewportHeight / 2;
         }
 
+        // Обновляем позицию таймера уровня при изменении камеры
+        updateLevelTimerPosition();
     }
 
     public void addChild(Actor actor) {
@@ -800,6 +853,29 @@ public class Level extends StageGame {
         timerLabel.setVisible(false);
         addOverlayChild(timerLabel);
         timerLabel.setPosition(20, getHeight() - 50);
+
+        // Инициализация таймера уровня
+        levelTimerStyle = new com.badlogic.gdx.scenes.scene2d.ui.Label.LabelStyle();
+        try {
+            com.badlogic.gdx.graphics.g2d.freetype.FreeTypeFontGenerator generator =
+                    new com.badlogic.gdx.graphics.g2d.freetype.FreeTypeFontGenerator(
+                            com.badlogic.gdx.Gdx.files.internal("fonts/GROBOLD.ttf")
+                    );
+            com.badlogic.gdx.graphics.g2d.freetype.FreeTypeFontGenerator.FreeTypeFontParameter parameter =
+                    new com.badlogic.gdx.graphics.g2d.freetype.FreeTypeFontGenerator.FreeTypeFontParameter();
+            parameter.size = 24;
+            levelTimerStyle.font = generator.generateFont(parameter);
+            generator.dispose();
+        } catch (Exception e) {
+            levelTimerStyle.font = new com.badlogic.gdx.graphics.g2d.BitmapFont();
+        }
+        levelTimerStyle.fontColor = com.badlogic.gdx.graphics.Color.WHITE;
+
+        levelTimerLabel = new com.badlogic.gdx.scenes.scene2d.ui.Label("00:00", levelTimerStyle);
+        levelTimerLabel.setVisible(true);
+        addOverlayChild(levelTimerLabel);
+        // Позиционируем в правом верхнем углу
+        levelTimerLabel.setPosition(getWidth() - levelTimerLabel.getWidth() - 20, getHeight() - 40);
     }
 
     // Методы для управления таймером переворота
@@ -813,6 +889,36 @@ public class Level extends StageGame {
         isTimerRunning = false;
         upsideDownTimer = 0f;
         timerLabel.setVisible(false);
+    }
+
+    // Методы для управления таймером уровня
+    private void startLevelTimer() {
+        levelTimerRunning = true;
+        levelTimer = 0f;
+        if (levelTimerLabel != null) {
+            levelTimerLabel.setVisible(true);
+        }
+    }
+
+    private void stopLevelTimer() {
+        levelTimerRunning = false;
+        if (levelTimerLabel != null) {
+            levelTimerLabel.setVisible(false);
+        }
+    }
+
+    private float updateLevelTimer(float delta) {
+        if (levelTimerRunning && levelTimerLabel != null) {
+            levelTimer += delta;
+            int minutes = (int) (levelTimer / 60);
+            int seconds = (int) (levelTimer % 60);
+            levelTimerLabel.setText(String.format("%02d:%02d", minutes, seconds));
+        }
+        return levelTimer;
+    }
+
+    public float getLevelTimer() {
+        return levelTimer;
     }
 
     private void updateUpsideDownTimer(float delta) {
@@ -858,11 +964,14 @@ public class Level extends StageGame {
         if (isTimerRunning) {
             stopUpsideDownTimer();
         }
+        stopLevelTimer();
         stopMusic();
 
         hideButtons();
 
         addOverlayChild(levelCompletedScreen);
+        // Перед показом экрана обновляем данные времени и уровня
+        levelCompletedScreen.setData(levelId, getLevelTimer());
         levelCompletedScreen.start();
 
         TRONgame.media.playSound("level_win_new.ogg");
@@ -871,6 +980,7 @@ public class Level extends StageGame {
     private void levelFailed() {
         if (state == LEVEL_FAILED) return;
         state = LEVEL_FAILED;
+        stopLevelTimer();
         stopMusic();
 
         addOverlayChild(levelFailedScreen);
@@ -897,6 +1007,8 @@ public class Level extends StageGame {
 
         call(ON_PAUSED);
         pauseMusic();
+        // Останавливаем таймер уровня при паузе
+        levelTimerRunning = false;
     }
 
     @Override
@@ -979,6 +1091,9 @@ public class Level extends StageGame {
             // Обновляем таймер переворота
             updateUpsideDownTimer(delta);
 
+            // Обновляем таймер уровня
+            updateLevelTimer(delta);
+
             updateCamera();
 
             if (player.getY() < -100) {
@@ -1033,6 +1148,25 @@ public class Level extends StageGame {
         }
 
         return super.keyUp(keycode);
+    }
+
+    private void updateLevelTimerPosition() {
+        if (levelTimerLabel != null) {
+            levelTimerLabel.pack(); // Обновляем размер label
+            levelTimerLabel.setPosition(getWidth() - levelTimerLabel.getWidth() - 20, getHeight() - 40);
+        }
+    }
+
+    private int extractLevelId(String directory) {
+        if (directory.startsWith("level")) {
+            try {
+                return Integer.parseInt(directory.substring(5)); // "level" = 5 символов
+            } catch (NumberFormatException e) {
+                System.err.println("Could not parse level ID from directory: " + directory);
+                return 1; // Default to level 1
+            }
+        }
+        return 1; // Default to level 1
     }
 }
 

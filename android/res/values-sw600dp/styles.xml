@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Стили для планшетов 7" (sw600dp) -->
+    
+    <!-- Адаптивные размеры для планшетов -->
+    <dimen name="button_size">64dp</dimen>
+    <dimen name="text_size_large">20sp</dimen>
+    <dimen name="text_size_medium">18sp</dimen>
+    <dimen name="text_size_small">16sp</dimen>
+    
+    <!-- Отступы для планшетов -->
+    <dimen name="margin_large">32dp</dimen>
+    <dimen name="margin_medium">24dp</dimen>
+    <dimen name="margin_small">16dp</dimen>
+    
+    <!-- Размеры UI элементов -->
+    <dimen name="icon_size_large">72dp</dimen>
+    <dimen name="icon_size_medium">56dp</dimen>
+    <dimen name="icon_size_small">48dp</dimen>
+    
+    <!-- Флаги для определения типа устройства -->
+    <bool name="isTablet">true</bool>
+    <bool name="isLargeScreen">true</bool>
+</resources>

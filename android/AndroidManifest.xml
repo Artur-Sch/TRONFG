@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <uses-sdk android:minSdkVersion="19" android:targetSdkVersion="35" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="35" />
     
     <!-- Поддержка больших экранов -->
     <supports-screens
@@ -19,6 +22,8 @@
         android:resizeableActivity="true"
         android:supportsPictureInPicture="true"
         android:hardwareAccelerated="true">
+        
+
         
         <activity
             android:name=".AndroidLauncher"

@@ -9,8 +9,7 @@ import com.boontaran.games.StageGame;
 import ru.schneider_dev.tronfg.TRONgame;
 import ru.schneider_dev.tronfg.controls.TextButton;
 
-import static ru.schneider_dev.tronfg.controls.TextButton.NEON_WHITE;
-import static ru.schneider_dev.tronfg.controls.TextButton.NEON_YELLOW;
+import static ru.schneider_dev.tronfg.controls.TextButton.*;
 
 public class GameCompletedScreen extends StageGame {
 
@@ -44,8 +43,8 @@ public class GameCompletedScreen extends StageGame {
 
         // Создаем кнопку "DONE" неоновым красным цветом
         doneButton = new TextButton("DONE", TRONgame.tr2nFont,
-                new com.badlogic.gdx.graphics.Color(1, 0, 0, 1), // Неоновый красный
-                new com.badlogic.gdx.graphics.Color(0.8f, 0, 0, 1)); // Темно-красный для нажатия
+                NEON_RED, // Неоновый красный
+               NEON_DARK_RED); // Темно-красный для нажатия
         addChild(doneButton);
 
         // Позиционируем элементы

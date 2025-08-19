@@ -2,6 +2,11 @@ android {
     namespace "ru.schneider_dev.tronfg"
     buildToolsVersion "35.0.0"
     compileSdkVersion 35
+    
+    buildFeatures {
+        buildConfig true
+    }
+    
     sourceSets {
         main {
             manifest.srcFile 'AndroidManifest.xml'
@@ -25,11 +30,21 @@ android {
     }
     defaultConfig {
         applicationId "ru.schneider_dev.tronfg"
-        minSdkVersion 19
+        minSdkVersion 21
         targetSdkVersion 35
         versionCode 4
         versionName "2.1"
         multiDexEnabled true
+        
+        // Читаем Supabase ключи из local.properties
+        def localProperties = new Properties()
+        def localPropertiesFile = rootProject.file("local.properties")
+        if (localPropertiesFile.exists()) {
+            localProperties.load(new FileInputStream(localPropertiesFile))
+        }
+        
+        buildConfigField "String", "SUPABASE_URL", "\"${localProperties.getProperty('supabase.url', '')}\""
+        buildConfigField "String", "SUPABASE_ANON_KEY", "\"${localProperties.getProperty('supabase.anon.key', '')}\""
     }
     
     packagingOptions {
@@ -55,6 +70,10 @@ android {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
             signingConfig signingConfigs.release
+            buildConfigField "boolean", "DEBUG", "false"
+        }
+        debug {
+            buildConfigField "boolean", "DEBUG", "true"
         }
     }
     compileOptions {
