@@ -1,12 +1,15 @@
 apply plugin: "java"
 
-sourceCompatibility = 11
-targetCompatibility = 11
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
 [compileJava, compileTestJava]*.options*.encoding = 'UTF-8'
 
 sourceSets.main.java.srcDirs = [ "src/" ]
 
 
-eclipse.project {
-    name = appName + "-core"
-}
+// Убираем устаревшую конфигурацию eclipse
+// eclipse.project {
+//     name = appName + "-core"
+// }

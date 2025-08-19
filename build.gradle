@@ -5,17 +5,20 @@ buildscript {
         mavenLocal()
         mavenCentral()
         maven { url "https://oss.sonatype.org/content/repositories/snapshots/" }
+        maven { url "https://oss.sonatype.org/content/repositories/releases/" }
         google()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:8.1.4'
+        classpath 'com.android.tools.build:gradle:8.7.3'
+        // Обновляем до последней версии с полной поддержкой compileSdk 35
         classpath 'com.badlogicgames.gdx:gdx-tools:1.9.5'
     }
 }
 
 allprojects {
-    apply plugin: "eclipse"
-    apply plugin: "idea"
+    // Убираем устаревшие плагины eclipse и idea
+    // apply plugin: "eclipse"  // Устарел
+    // apply plugin: "idea"     // Устарел
 
     version = '2.1'
     ext {
@@ -96,6 +99,22 @@ project(":core") {
     }
 }
 
-tasks.eclipse.doLast {
-    delete ".project"
+project(":ios") {
+    apply plugin: "java"
+
+    java {
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
+    }
+
+    dependencies {
+        implementation project(":core")
+        // iOS dependencies will be added when using proper iOS build tools
+        // For now, this is a placeholder module
+    }
 }
+
+// Убираем устаревшие задачи eclipse
+// tasks.eclipse.doLast {
+//     delete ".project"
+// }

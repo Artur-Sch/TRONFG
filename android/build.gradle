@@ -21,9 +21,11 @@ android {
         androidTest.setRoot('tests')
     }
     packagingOptions {
-        exclude 'META-INF/robovm/ios/robovm.xml'
+        resources {
+            excludes += ['META-INF/robovm/ios/robovm.xml', 'META-INF/kotlinx_coroutines_core.version']
+        }
     }
-    
+
     repositories {
         google()
         mavenCentral()
@@ -32,7 +34,7 @@ android {
         applicationId "ru.schneider_dev.tronfg"
         minSdkVersion 21
         targetSdkVersion 35
-        versionCode 4
+        versionCode 5
         versionName "2.1"
         multiDexEnabled true
         
@@ -46,11 +48,8 @@ android {
         buildConfigField "String", "SUPABASE_URL", "\"${localProperties.getProperty('supabase.url', '')}\""
         buildConfigField "String", "SUPABASE_ANON_KEY", "\"${localProperties.getProperty('supabase.anon.key', '')}\""
     }
-    
-    packagingOptions {
-        exclude 'META-INF/kotlinx_coroutines_core.version'
-    }
-    
+
+
     signingConfigs {
         release {
             def keystorePropertiesFile = rootProject.file("android/keystore.properties")
@@ -77,8 +76,8 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_11
-        targetCompatibility JavaVersion.VERSION_11
+        sourceCompatibility JavaVersion.VERSION_21
+        targetCompatibility JavaVersion.VERSION_21
     }
 }
 // called every time gradle gets executed, takes the native dependencies of
