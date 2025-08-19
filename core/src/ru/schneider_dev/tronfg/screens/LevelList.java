@@ -2,8 +2,10 @@ package ru.schneider_dev.tronfg.screens;
 
 
 import com.badlogic.gdx.Input;
+import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.scenes.scene2d.Group;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
+import com.badlogic.gdx.scenes.scene2d.Touchable;
 import com.badlogic.gdx.scenes.scene2d.actions.Actions;
 import com.badlogic.gdx.scenes.scene2d.ui.Image;
 import com.badlogic.gdx.scenes.scene2d.ui.ImageButton;
@@ -13,6 +15,7 @@ import com.boontaran.games.StageGame;
 
 import ru.schneider_dev.tronfg.Setting;
 import ru.schneider_dev.tronfg.TRONgame;
+import ru.schneider_dev.tronfg.controls.TextButton;
 import ru.schneider_dev.tronfg.media.LevelIcon;
 import ru.schneider_dev.tronfg.controls.PngIcon;
 import ru.schneider_dev.tronfg.controls.MenuMusicTextButton;
@@ -24,8 +27,11 @@ public class LevelList  extends StageGame {
     public static final int ON_LEVEL_SELECTED = 2;
     public static final int ON_OPEN_MARKET = 3;
     public static final int ON_SHARE = 4;
+    public static final int ON_SCORE = 5;
 
     private static final String MENU_MUSIC = "new_menu.ogg";
+    private TextButton scoreBtn;
+    private static final String CLICK_SOUND = "new_click.ogg";
 
     private Group container;
     private int selectedLevelId = 0;
@@ -44,7 +50,7 @@ public class LevelList  extends StageGame {
         addChild(container);
 
         int row = 4, col = 4;
-        float space = 20;
+        float space = 25;
 
         float iconWidht = 0, iconHeight = 0;
         int id = 1;
@@ -117,6 +123,8 @@ public class LevelList  extends StageGame {
 
         // Создаем кнопку музыки в правом нижнем углу
         createMusicButton();
+
+        setupScoreButton();
     }
 
     private void createMusicButton() {
@@ -164,6 +172,46 @@ public class LevelList  extends StageGame {
         TRONgame.media.stopMusic(MENU_MUSIC);
         super.dispose();
     }
+
+    private void setupScoreButton() {
+        scoreBtn = new TextButton("SCORE", TRONgame.tr2nFont, Color.WHITE, Color.GREEN);
+        addChild(scoreBtn);
+
+        centerHorizontally(scoreBtn);
+        scoreBtn.setY(30);
+
+        setupScoreButtonAnimation();
+        setupScoreButtonListener();
+    }
+
+    private void setupScoreButtonAnimation() {
+        scoreBtn.setColor(1, 1, 1, 0);
+        scoreBtn.addAction(Actions.delay( 0.2f,
+                Actions.fadeIn(0.2f)));
+    }
+
+    private void setupScoreButtonListener() {
+        scoreBtn.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                onClickScore();
+                TRONgame.media.playSound(CLICK_SOUND);
+            }
+        });
+    }
+
+    private void centerHorizontally(TextButton button) {
+        button.updateSize();
+        button.setX((getWidth() - button.getWidth()) / 2);
+    }
+
+    private void onClickScore() {
+        scoreBtn.setTouchable(Touchable.disabled);
+        scoreBtn.addAction(Actions.fadeOut(0.2f));
+
+        call(ON_SCORE);
+    }
+
 
     public void start() {
         // Анимация появления иконки звука

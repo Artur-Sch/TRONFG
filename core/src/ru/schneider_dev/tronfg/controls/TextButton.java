@@ -20,9 +20,15 @@ public class TextButton extends Group {
     public static final Color NEON_MAGENTA = new Color(1.0f, 0.0f, 1.0f, 1.0f);   // Маджента
     public static final Color NEON_GREEN = new Color(0.0f, 1.0f, 0.0f, 1.0f);     // Зеленый
     public static final Color NEON_BLUE = new Color(0.0f, 0.5f, 1.0f, 1.0f);      // Синий
-    public static final Color NEON_YELLOW = new Color(1.0f, 0.8f, 0.1f, 1.0f);    // Желтый
+    public static final Color NEON_YELLOW = new Color(1.0f, 0.8f, 0.1f, 1.0f);    // Неоновый Желтый
+    public static final Color YELLOW = new Color(1, 1, 0, 1);    // Желтый
+    public static final Color NEON_RED = new Color(1.0f, 0.0f, 0.0f, 1.0f);// Красный
+    public static final Color NEON_DARK_RED =  new Color(0.8f, 0, 0, 1); // Темно-красный для нажатия
+    public static final Color NEON_ORANGE = new Color(1, 0.5f, 0, 1);    // Оранжевый
+    public static final Color NEON_DARK_ORANGE = new Color(0.8f, 0.4f, 0, 1); // Темно-оранжевый для нажатия
 
-
+    public static final float BUTTON_SPACING = 6f;
+    public static final float Y_START_OFFSET_BUTTON = 45f;// отступ первой кнопки от центра
     
     public TextButton(String text, BitmapFont font) {
         this(text, font, NEON_WHITE, NEON_MAGENTA);

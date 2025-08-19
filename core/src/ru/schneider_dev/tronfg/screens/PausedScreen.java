@@ -1,7 +1,6 @@
 package ru.schneider_dev.tronfg.screens;
 
 
-import com.badlogic.gdx.Input;
 import com.badlogic.gdx.math.Interpolation;
 import com.badlogic.gdx.scenes.scene2d.Group;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
@@ -13,8 +12,7 @@ import ru.schneider_dev.tronfg.TRONgame;
 import ru.schneider_dev.tronfg.controls.MusicTextButton;
 import ru.schneider_dev.tronfg.controls.TextButton;
 
-import static ru.schneider_dev.tronfg.controls.TextButton.NEON_WHITE;
-import static ru.schneider_dev.tronfg.controls.TextButton.NEON_YELLOW;
+import static ru.schneider_dev.tronfg.controls.TextButton.*;
 
 
 public class PausedScreen extends Group {
@@ -22,10 +20,6 @@ public class PausedScreen extends Group {
     public static final int ON_RESUME = 1;
     public static final int ON_QUIT = 2;
     public static final int ON_RESTART = 3;
-
-    // Константы для позиционирования кнопок
-    private static final float BUTTON_SPACING = 7f; // Отступ между кнопками
-    private static final float RESUME_Y_OFFSET = 20f; // Отступ кнопки RESUME от центра экрана
 
     private Label title;
     private TextButton resume, quit, restart;
@@ -38,7 +32,7 @@ public class PausedScreen extends Group {
         this.h = h;
 
         // Создаем текстовый заголовок PAUSE неоновым зеленым цветом
-        Label.LabelStyle titleStyle = new Label.LabelStyle(TRONgame.tr2nFont, new com.badlogic.gdx.graphics.Color(0, 1, 0, 1)); // Неоновый зеленый
+        Label.LabelStyle titleStyle = new Label.LabelStyle(TRONgame.tr2nFont, NEON_GREEN); // Неоновый зеленый
         title = new Label("PAUSE", titleStyle);
         title.setFontScale(1.8f);
         addActor(title);
@@ -49,13 +43,11 @@ public class PausedScreen extends Group {
 
         // Создаем кнопку RESUME неоновым белым цветом
         resume = new TextButton("RESUME", TRONgame.tr2nFont, NEON_WHITE, NEON_YELLOW); // Светло-серый для нажатия
-
         addActor(resume);
-
         // Принудительно обновляем размеры перед позиционированием
         resume.updateSize();
         // Центрируем кнопки по вертикали и устанавливаем горизонтальное расположение
-        resume.setY((h - resume.getHeight()) / 2 - RESUME_Y_OFFSET); // Поднимаем выше
+        resume.setY((h - resume.getHeight()) / 2 - Y_START_OFFSET_BUTTON); // Поднимаем выше
         resume.setX(w / 2 - resume.getWidth() / 2); // Центрируем по горизонтали
         resume.setColor(1, 1, 1, 0); // Начинаем с прозрачности 0
         resume.addListener(new ClickListener() {
@@ -67,8 +59,8 @@ public class PausedScreen extends Group {
 
         // Создаем кнопку RESTART неоновым оранжевым цветом
         restart = new TextButton("RESTART", TRONgame.tr2nFont,
-                new com.badlogic.gdx.graphics.Color(1, 0.5f, 0, 1), // Оранжевый цвет
-                new com.badlogic.gdx.graphics.Color(0.8f, 0.4f, 0, 1)); // Темно-оранжевый для нажатия
+                NEON_ORANGE, // Оранжевый цвет
+                NEON_DARK_ORANGE); // Темно-оранжевый для нажатия
 
         addActor(restart);
 
@@ -88,8 +80,8 @@ public class PausedScreen extends Group {
 
         // Создаем кнопку EXIT неоновым красным цветом
         quit = new TextButton("EXIT", TRONgame.tr2nFont,
-                new com.badlogic.gdx.graphics.Color(1, 0, 0, 1), // Красный цвет
-                new com.badlogic.gdx.graphics.Color(0.8f, 0, 0, 1)); // Темно-красный для нажатия
+               NEON_RED, // Красный цвет
+                NEON_DARK_RED); // Темно-красный для нажатия
 
         addActor(quit);
 

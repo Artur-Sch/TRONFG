@@ -10,7 +10,6 @@ buildscript {
     dependencies {
         classpath 'com.android.tools.build:gradle:8.1.4'
         classpath 'com.badlogicgames.gdx:gdx-tools:1.9.5'
-
     }
 }
 
@@ -18,7 +17,7 @@ allprojects {
     apply plugin: "eclipse"
     apply plugin: "idea"
 
-    version = '2.0'
+    version = '2.1'
     ext {
         appName = "TRONFG"
         gdxVersion = '1.9.5'
@@ -76,8 +75,9 @@ project(":android") {
         natives "com.badlogicgames.gdx:gdx-freetype-platform:$gdxVersion:natives-arm64-v8a"
         natives "com.badlogicgames.gdx:gdx-freetype-platform:$gdxVersion:natives-x86"
         natives "com.badlogicgames.gdx:gdx-freetype-platform:$gdxVersion:natives-x86_64"
-        // implementation 'com.google.android.gms:play-services-ads:22.6.0'
         implementation 'androidx.multidex:multidex:2.0.1'
+        implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+        implementation 'com.squareup.okhttp3:logging-interceptor:4.12.0'
         implementation fileTree(dir: '../core/libs', include: 'game_lib.jar')
 
     }

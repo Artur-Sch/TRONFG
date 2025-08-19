@@ -15,8 +15,7 @@ import com.boontaran.MessageEvent;
 import ru.schneider_dev.tronfg.TRONgame;
 import ru.schneider_dev.tronfg.controls.TextButton;
 
-import static ru.schneider_dev.tronfg.controls.TextButton.NEON_WHITE;
-import static ru.schneider_dev.tronfg.controls.TextButton.NEON_YELLOW;
+import static ru.schneider_dev.tronfg.controls.TextButton.*;
 
 
 public class LevelFailedScreen extends Group {
@@ -43,16 +42,12 @@ public class LevelFailedScreen extends Group {
         title.setY(h);
 
         // Создаем кнопку RESTART неоновым белым цветом
-        retry = new TextButton("RESTART", TRONgame.tr2nFont, NEON_WHITE, NEON_YELLOW); // Светло-серый для нажатия
-
+        retry = new TextButton("RESTART", TRONgame.tr2nFont, NEON_WHITE, NEON_YELLOW);
         addActor(retry);
-
         // Принудительно обновляем размеры перед позиционированием
         retry.updateSize();
-
-        retry.setY((h - retry.getHeight()) / 2 - 30); // Поднимаем выше
+        retry.setY((h - retry.getHeight()) / 2 - Y_START_OFFSET_BUTTON); // Поднимаем выше
         retry.setX(w / 2 - retry.getWidth() / 2); // Центрируем по горизонтали
-
         retry.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
@@ -62,16 +57,12 @@ public class LevelFailedScreen extends Group {
         });
 
         // Создаем кнопку EXIT неоновым красным цветом
-        quit = new TextButton("EXIT", TRONgame.tr2nFont,
-                new com.badlogic.gdx.graphics.Color(1, 0, 0, 1), // Красный цвет
-                new com.badlogic.gdx.graphics.Color(0.8f, 0, 0, 1)); // Темно-красный для нажатия
-
+        quit = new TextButton("EXIT", TRONgame.tr2nFont, NEON_RED, NEON_DARK_RED);
         addActor(quit);
-
         // Принудительно обновляем размеры перед позиционированием
         quit.updateSize();
 
-        quit.setY((h - quit.getHeight()) / 2 - 90); // Опускаем ниже
+        quit.setY(retry.getY() - quit.getHeight() - BUTTON_SPACING); // Опускаем ниже
         quit.setX(w / 2 - quit.getWidth() / 2); // Центрируем по горизонтали
         quit.setColor(1, 0, 0, 0); // Красный с прозрачностью 0
         quit.addListener(new ClickListener() {
