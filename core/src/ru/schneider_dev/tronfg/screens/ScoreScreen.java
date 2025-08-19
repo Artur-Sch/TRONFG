@@ -58,7 +58,6 @@ public class ScoreScreen extends StageGame {
 
 	public ScoreScreen(int sourceScreen) {
 		this.sourceScreen = sourceScreen;
-		Gdx.app.log("ScoreScreen", "Created with source: " + sourceScreen + " (1=Intro, 2=LevelList)");
 		setupBackground();
 		setupTitle();
 		setupUpdateButton();
@@ -66,9 +65,7 @@ public class ScoreScreen extends StageGame {
 		leaderboardService = LeaderboardServiceFactory.createLeaderboardService();
 		
 		// Инициализируем кеш ПЕРЕД созданием таблицы
-		Gdx.app.log("Cache", "ScoreScreen created, initializing cache...");
 		loadCachedData();
-		Gdx.app.log("Cache", "Cache initialization complete");
 		
 		setupScoreTable();
 		setupBackButton();
@@ -79,22 +76,24 @@ public class ScoreScreen extends StageGame {
 		Data data = TRONgame.data;
 		if (data != null) {
 			lastUpdateTime = data.getLong("cache_last_update_time", 0L);
-			Gdx.app.log("Cache", "Loading cache, last update: " + lastUpdateTime + " ms ago");
 			
 			for (int i = 1; i <= 16; i++) {
 				int rankHash = data.getInt("cache_rank_" + i, 0);
 				float bestTime = data.getFloat("cache_best_" + i, 0f);
+				
 				if (rankHash != 0) {
 					String rank = decodeRankFromHash(rankHash);
 					cachedRanks.put(i, rank);
-					Gdx.app.log("Cache", "Loaded rank for level " + i + ": " + rank + " (hash: " + rankHash + ")");
 				}
 				if (bestTime > 0f) {
 					cachedBestTimes.put(i, bestTime);
-					Gdx.app.log("Cache", "Loaded best time for level " + i + ": " + bestTime);
 				}
 			}
-			Gdx.app.log("Cache", "Loaded " + cachedRanks.size() + " ranks and " + cachedBestTimes.size() + " best times");
+		}
+		
+		// Применяем кешированные данные если они есть
+		if (!cachedRanks.isEmpty() || !cachedBestTimes.isEmpty()) {
+			applyCachedData();
 		}
 	}
 	
@@ -103,18 +102,14 @@ public class ScoreScreen extends StageGame {
 		Data data = TRONgame.data;
 		if (data != null) {
 			data.saveLong("cache_last_update_time", lastUpdateTime);
-			Gdx.app.log("Cache", "Saving cache, update time: " + lastUpdateTime);
 			
 			for (Map.Entry<Integer, String> e : cachedRanks.entrySet()) {
 				int hash = encodeRankToHash(e.getValue());
 				data.saveInt("cache_rank_" + e.getKey(), hash);
-				Gdx.app.log("Cache", "Saved rank for level " + e.getKey() + ": " + e.getValue() + " (hash: " + hash + ")");
 			}
 			for (Map.Entry<Integer, Float> e : cachedBestTimes.entrySet()) {
 				data.saveFloat("cache_best_" + e.getKey(), e.getValue());
-				Gdx.app.log("Cache", "Saved best time for level " + e.getKey() + ": " + e.getValue());
 			}
-			Gdx.app.log("Cache", "Saved " + cachedRanks.size() + " ranks and " + cachedBestTimes.size() + " best times");
 		}
 	}
 	
@@ -255,10 +250,7 @@ public class ScoreScreen extends StageGame {
 		
 		// Применяем кешированные данные если они есть (только для быстрого отображения при открытии экрана)
 		if (!cachedRanks.isEmpty() || !cachedBestTimes.isEmpty()) {
-			Gdx.app.log("Cache", "Found cached data, applying to table...");
 			applyCachedData();
-		} else {
-			Gdx.app.log("Cache", "No cached data found, table will show default values");
 		}
 	}
 
@@ -279,47 +271,36 @@ public class ScoreScreen extends StageGame {
 
 	private void updateRankings() {
 		// Кнопка UPDATE всегда работает - убираем проверку кеша
-		Gdx.app.log("Leaderboard", "Starting rankings update...");
 		updateButton.setTouchable(Touchable.disabled);
 		updateButton.setText("UPDATING...");
 		
 		List<ScoreEntry> scores = getScoreData();
 		if (scores.isEmpty()) {
-			Gdx.app.log("Leaderboard", "No results to update");
 			updateButton.setText("NO RESULTS");
 			updateButton.setTouchable(Touchable.enabled);
 			return;
 		}
 		
-		Gdx.app.log("Leaderboard", "Updating " + scores.size() + " level results");
 		String userId = TRONgame.data.getUserId();
-		Gdx.app.log("Leaderboard", "Using user ID: " + userId);
 		
 		// Сначала отправляем результаты для всех пройденных уровней
 		sendAllResults(userId, scores, 0);
 	}
 	
 	private void applyCachedData() {
-		Gdx.app.log("Cache", "Applying cached data: " + cachedRanks.size() + " ranks, " + cachedBestTimes.size() + " best times");
 		for (Map.Entry<Integer, String> entry : cachedRanks.entrySet()) {
 			Label rankLabel = levelIdToRankLabel.get(entry.getKey());
 			if (rankLabel != null) {
 				rankLabel.setText(entry.getValue());
-				Gdx.app.log("Cache", "Applied rank for level " + entry.getKey() + ": " + entry.getValue());
-			} else {
-				Gdx.app.log("Cache", "No rank label found for level " + entry.getKey());
 			}
 		}
+		
 		for (Map.Entry<Integer, Float> entry : cachedBestTimes.entrySet()) {
 			int lvl = entry.getKey();
 			float globalBest = entry.getValue();
-			
-			// TIME не трогаем - он показывает лучшее время пользователя
-			// Обновляем только BEST (глобальное лучшее время)
 			Label bestLabel = levelIdToBestLabel.get(lvl);
 			if (bestLabel != null) {
 				bestLabel.setText(formatTime(globalBest));
-				Gdx.app.log("Cache", "Applied global best time for level " + lvl + ": " + formatTime(globalBest));
 			}
 		}
 	}
@@ -339,14 +320,12 @@ public class ScoreScreen extends StageGame {
 			new LeaderboardService.LeaderboardCallback() {
 				@Override
 				public void onSuccess(int rank, int totalPlayers, float bestTime) {
-					Gdx.app.log("Leaderboard", "Submitted level " + entry.levelId + " with best user time: " + bestUserTime);
 					// Отправляем следующий результат
 					sendAllResults(userId, scores, currentIndex + 1);
 				}
 				
 				@Override
 				public void onError(String error) {
-					Gdx.app.log("Leaderboard", "Submit error for level " + entry.levelId + ": " + error);
 					// Продолжаем с следующим уровнем даже при ошибке
 					sendAllResults(userId, scores, currentIndex + 1);
 				}
@@ -381,7 +360,6 @@ public class ScoreScreen extends StageGame {
 					Gdx.app.postRunnable(() -> {
 						if (rankLbl != null) rankLbl.setText(rank + "/" + total);
 						if (bestLbl != null) bestLbl.setText(formatTime(best));
-						Gdx.app.log("Leaderboard", "Level " + levelId + " rank: " + rank + "/" + total + ", best: " + best);
 					});
 				}
 				// Получаем ранг для следующего уровня
@@ -390,7 +368,6 @@ public class ScoreScreen extends StageGame {
 			
 			@Override
 			public void onError(String error) {
-				Gdx.app.log("Leaderboard", "getRank error for level " + levelId + ": " + error);
 				// Продолжаем с следующим уровнем даже при ошибке
 				getAllRanks(userId, scores, currentIndex + 1);
 			}
@@ -429,13 +406,10 @@ public class ScoreScreen extends StageGame {
 		if ("back".equals(code)) {
 			// Возвращаемся туда, откуда пришли
 			if (sourceScreen == 1) {
-				Gdx.app.log("ScoreScreen", "Returning to Intro");
 				call(ON_BACK_TO_INTRO);
 			} else if (sourceScreen == 2) {
-				Gdx.app.log("ScoreScreen", "Returning to LevelList");
 				call(ON_BACK_TO_LEVEL_LIST);
 			} else {
-				Gdx.app.log("ScoreScreen", "Unknown source, fallback to Intro");
 				call(ON_BACK); // Fallback
 			}
 		}

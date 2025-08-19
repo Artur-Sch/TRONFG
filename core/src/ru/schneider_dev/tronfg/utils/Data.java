@@ -33,44 +33,30 @@ public class Data {
      * Инициализирует ID пользователя только один раз
      */
     private void initializeUserId() {
-        // Генерируем уникальный ID на основе хеша
-        int userIdHash = manager.getInt(USER_ID_KEY, 0);
-
-        System.out.println("initializeUserId: current hash = " + userIdHash);
-        
-        if (userIdHash == 0) {
-            // Попробуем восстановить из резервных копий
-            userIdHash = restoreUserIdFromBackup();
-            
-            if (userIdHash == 0) {
-                // Генерируем новый ID только если его действительно нет
-                userIdHash = java.util.UUID.randomUUID().hashCode();
-                System.out.println("initializeUserId: generated new hash: " + userIdHash);
-                
-                // Сохраняем ID в нескольких местах для надёжности
-                manager.saveInt(USER_ID_KEY, userIdHash);
-                manager.saveInt(USER_ID_KEY + "_backup", userIdHash);
-                
-                // Также сохраняем как строку для совместимости
-                String newUserId = "user_" + Math.abs(userIdHash);
-                int stringHash = newUserId.hashCode();
-                manager.saveInt(USER_ID_KEY + "_string", stringHash);
-            }
-        }
-        
-        // Сохраняем ID в поле класса
-        this.userId = "user_" + Math.abs(userIdHash);
-        System.out.println("initializeUserId: initialized: " + this.userId);
-    }
+		// Пытаемся восстановить существующий ID пользователя
+		int userIdHash = manager.getInt(USER_ID_KEY, 0);
+		
+		if (userIdHash == 0) {
+			// Пытаемся восстановить из backup ключа
+			userIdHash = restoreUserIdFromBackup();
+			
+			if (userIdHash == 0) {
+				// Генерируем новый ID
+				userIdHash = generateNewUserIdHash();
+			}
+		}
+		
+		this.userId = "user_" + Math.abs(userIdHash);
+	}
     
     /**
      * Получает уникальный идентификатор пользователя (из кеша)
      * @return userId
      */
     public String getUserId() {
-        // Просто возвращаем сохранённый ID
-        return this.userId;
-    }
+		// Просто возвращаем сохранённый ID
+		return this.userId;
+	}
     
     /**
      * Восстанавливает ID из резервных копий
@@ -80,7 +66,6 @@ public class Data {
         // Пробуем восстановить из резервной копии
         int backupHash = manager.getInt(USER_ID_KEY + "_backup", 0);
         if (backupHash != 0) {
-            System.out.println("getUserId: restored from backup: " + backupHash);
             // Восстанавливаем основной ID
             manager.saveInt(USER_ID_KEY, backupHash);
             return backupHash;
@@ -89,7 +74,6 @@ public class Data {
         // Пробуем восстановить из строкового хеша
         int stringHash = manager.getInt(USER_ID_KEY + "_string", 0);
         if (stringHash != 0) {
-            System.out.println("getUserId: found string hash: " + stringHash);
             // Пытаемся найти оригинальный ID по строковому хешу
             // Это сложно, поэтому просто возвращаем 0
             return 0;
@@ -97,6 +81,22 @@ public class Data {
         
         return 0;
     }
+
+    private int generateNewUserIdHash() {
+		// Генерируем новый ID
+		int userIdHash = java.util.UUID.randomUUID().hashCode();
+		
+		// Сохраняем ID в нескольких местах для надёжности
+		manager.saveInt(USER_ID_KEY, userIdHash);
+		manager.saveInt(USER_ID_KEY + "_backup", userIdHash);
+		
+		// Также сохраняем как строку для совместимости
+		String newUserId = "user_" + Math.abs(userIdHash);
+		int stringHash = newUserId.hashCode();
+		manager.saveInt(USER_ID_KEY + "_string", stringHash);
+		
+		return userIdHash;
+	}
 
     public int getProgress() {
         return  manager.getInt(PROGRESS_KEY, 1);

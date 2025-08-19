@@ -402,7 +402,6 @@ public class TRONgame extends Game {
                     hideScoreScreen();
                     showLevelList();
                 } else if (code == ScoreScreen.ON_BACK) {
-                    // Fallback - возвращаемся в Intro
                     hideScoreScreen();
                     showIntro();
                 }

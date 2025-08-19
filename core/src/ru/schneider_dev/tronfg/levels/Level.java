@@ -290,13 +290,11 @@ public class Level extends StageGame {
         if (TRONgame.data != null) {
             float levelTime = getLevelTimer();
             TRONgame.data.saveLevelTime(levelId, levelTime);
-            System.out.println("Level " + levelId + " completed in " + levelTime + " seconds (saved via DONE)");
-            
+
             // Обновляем прогресс игры чтобы следующий уровень стал доступным
             int newProgress = levelId + 1;
             if (newProgress > TRONgame.data.getProgress()) {
                 TRONgame.data.setProgress(newProgress);
-                System.out.println("Progress updated to level " + newProgress);
             }
         }
     }
@@ -305,9 +303,9 @@ public class Level extends StageGame {
      * Переходит к следующему уровню
      */
     private void goToNextLevel() {
-        // Вызываем ON_COMPLETED чтобы TRONgame обработал переход к следующему уровню
-        call(ON_COMPLETED);
-    }
+		// Переходим к следующему уровню
+		call(ON_COMPLETED);
+	}
 
     private void resumelevel() {
         state = PLAY;
