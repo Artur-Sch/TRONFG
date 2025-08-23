@@ -1,0 +1,40 @@
+name: TRONFG
+options:
+  minimumXcodeGenVersion: 2.39.0
+  deploymentTarget:
+    iOS: 13.0
+settings:
+  base:
+    PRODUCT_BUNDLE_IDENTIFIER: ru.schneider-dev.tronfg
+    SWIFT_VERSION: 5.0
+    TARGETED_DEVICE_FAMILY: 1
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Automatic
+packages: {}
+
+targets:
+  TRONFG:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+      - path: Resources
+        type: folder
+    resources:
+      - Resources
+    settings:
+      base:
+        INFOPLIST_FILE: Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    dependencies: []
+    prebuildScripts: []
+    postbuildScripts: []
+schemes:
+  TRONFG:
+    build:
+      targets:
+        TRONFG: all
+    run:
+      config: Debug
+    archive:
+      config: Release
