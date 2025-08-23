@@ -37,6 +37,9 @@ import ru.schneider_dev.tronfg.player.UserData;
 import ru.schneider_dev.tronfg.screens.LevelCompletedScreen;
 import ru.schneider_dev.tronfg.screens.LevelFailedScreen;
 import ru.schneider_dev.tronfg.screens.PausedScreen;
+import com.badlogic.gdx.Gdx;
+
+import static ru.schneider_dev.tronfg.TRONgame.GAME_MUSIC;
 
 
 public class Level extends StageGame {
@@ -68,6 +71,8 @@ public class Level extends StageGame {
 
     private JoyStick joyStick;
     private CButton jumpBackBtn, jumpForwardBtn;
+    private CButton restartBtn; // Кнопка рестарта уровня
+    private CButton pauseBtn; // Кнопка паузы
 
     private String musicName;
     private boolean musicHasLoaded;
@@ -221,6 +226,50 @@ public class Level extends StageGame {
             }
         });
 
+        // Создаем кнопку паузы уровня
+        Image pauseNormal = new Image(TRONgame.atlas.findRegion("pause"));
+        Image pausePressed = new Image(TRONgame.atlas.findRegion("pause")); // Используем ту же текстуру для нажатого состояния
+        
+        pauseBtn = new CButton(pauseNormal, pausePressed, mmToPx(8)); // Размер 8мм
+        addOverlayChild(pauseBtn);
+        
+        // Позиционируем кнопку паузы в верхнем левом углу экрана (на месте кнопки рестарта)
+        pauseBtn.setPosition(20, getHeight() - 70); // 70 пикселей от верха, в левом углу
+        
+        pauseBtn.addListener(new ClickListener() {
+            @Override
+            public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
+                if (state == PLAY) {
+                    TRONgame.playSoundSafe("new_click.ogg");
+                    pauseLevel();
+                    return true;
+                }
+                return super.touchDown(event, x, y, pointer, button);
+            }
+        });
+
+        // Создаем кнопку рестарта уровня
+        Image restartNormal = new Image(TRONgame.atlas.findRegion("restart_btn"));
+        Image restartPressed = new Image(TRONgame.atlas.findRegion("restart_btn_dwn")); // Используем ту же текстуру для нажатого состояния
+        
+        restartBtn = new CButton(restartNormal, restartPressed, mmToPx(8)); // Размер 8мм
+        addOverlayChild(restartBtn);
+        
+        // Позиционируем кнопку рестарта ниже кнопки паузы
+        restartBtn.setPosition(20, getHeight() - 140); // 130 пикселей от верха, в левом углу
+        
+        restartBtn.addListener(new ClickListener() {
+            @Override
+            public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
+                if (state == PLAY) {
+                    TRONgame.playSoundSafe("new_click.ogg");
+                    restartLevel();
+                    return true;
+                }
+                return super.touchDown(event, x, y, pointer, button);
+            }
+        });
+
         levelFailedScreen = new LevelFailedScreen(getWidth(), getHeight());
         levelFailedScreen.addListener(new MessageListener() {
             @Override
@@ -239,7 +288,6 @@ public class Level extends StageGame {
             protected void receivedMessage(int message, Actor actor) {
                 if (message == LevelCompletedScreen.ON_DONE) {
                     // Уровень пройден - сохраняем время и возвращаемся к выбору уровней
-                    saveLevelCompletion();
                     call(ON_QUIT);
                 } else if (message == LevelCompletedScreen.ON_RESTART) {
                     restartLevel();
@@ -255,13 +303,13 @@ public class Level extends StageGame {
             @Override
             protected void receivedMessage(int message, Actor actor) {
                 if (message == PausedScreen.ON_RESUME) {
-                    TRONgame.media.playSound("new_click.ogg");
+                    TRONgame.playSoundSafe("new_click.ogg");
                     resumelevel();
                 } else if (message == PausedScreen.ON_QUIT) {
-                    TRONgame.media.playSound("new_click.ogg");
+                    TRONgame.playSoundSafe("new_click.ogg");
                     quitLevel();
                 } else if (message == PausedScreen.ON_RESTART) {
-                    TRONgame.media.playSound("new_click.ogg");
+                    TRONgame.playSoundSafe("new_click.ogg");
                     restartLevel();
                 }
             }
@@ -322,9 +370,11 @@ public class Level extends StageGame {
         // Синхронизируем с новой музыкой, выбранной в паузе
         syncMusicWithPauseScreen();
 
-        // Воспроизводим музыку только если она не выключена глобально
+        // Музыка уровня теперь проверяет настройки звука!
         if (!TRONgame.isSoundMuted) {
             playMusic();
+        } else {
+            Gdx.app.log("Level", "🔇 Level music not resumed (SOUND: OFF)");
         }
     }
 
@@ -354,10 +404,7 @@ public class Level extends StageGame {
      * Определяет, какая музыка сейчас играет
      */
     private String getCurrentlyPlayingMusic() {
-        // Проверяем все возможные игровые мелодии
-        String[] gameMusic = {"new_music1.ogg", "new_music2.ogg", "new_music3.ogg"};
-
-        for (String music : gameMusic) {
+        for (String music : GAME_MUSIC) {
             try {
                 // Пытаемся получить музыку из Media
                 com.badlogic.gdx.audio.Music musicObj = TRONgame.media.getMusic(music);
@@ -417,6 +464,15 @@ public class Level extends StageGame {
             Body bodyA = contact.getFixtureA().getBody();
             Body bodyB = contact.getFixtureB().getBody();
 
+            // Проверяем финиш для обоих тел
+            if (isFinishBody(bodyA) || isFinishBody(bodyB)) {
+                Body playerBody = (bodyA == player.car || bodyA == player.frontWheel || bodyA == player.rearWheel) ? bodyA : bodyB;
+                if (playerBody != null) {
+                    Gdx.app.log("Level", "🎯 FINISH CONTACT DETECTED! Player body: " + getPlayerBodyName(playerBody));
+                    levelCompleted();
+                    return;
+                }
+            }
 
             if (bodyA == player.car) {
                 playerTouch(bodyB);
@@ -482,8 +538,6 @@ public class Level extends StageGame {
                     }
                 }
             }
-
-
         }
 
         @Override
@@ -501,6 +555,20 @@ public class Level extends StageGame {
 
         }
     };
+
+    // Вспомогательные методы для проверки финиша
+    private boolean isFinishBody(Body body) {
+        if (body == finish) return true;
+        UserData data = (UserData) body.getUserData();
+        return data != null && "finish".equals(data.name);
+    }
+
+    private String getPlayerBodyName(Body body) {
+        if (body == player.car) return "car";
+        if (body == player.frontWheel) return "frontWheel";
+        if (body == player.rearWheel) return "rearWheel";
+        return "unknown";
+    }
 
     private void loadMap(String tmxFile) {
 
@@ -577,14 +645,25 @@ public class Level extends StageGame {
         Body body = world.createBody(def);
         body.createFixture(fdef);
         body.setTransform(rectangle.x + rectangle.width / 2, rectangle.y + rectangle.height / 2, 0);
+        
+        // Добавляем UserData для финиша
+        UserData finishData = new UserData();
+        finishData.name = "finish";
+        body.setUserData(finishData);
+        
         shape.dispose();
 
         return body;
     }
 
     private void playMusic() {
+        // Музыка уровня теперь проверяет настройки звука!
+        // Если SOUND OFF - музыка не играет
         if (musicName != null && musicHasLoaded && !TRONgame.isSoundMuted) {
             TRONgame.media.playMusic(musicName, true);
+            Gdx.app.log("Level", "🎵 Level music started: " + musicName + " (SOUND: ON)");
+        } else if (TRONgame.isSoundMuted) {
+            Gdx.app.log("Level", "🔇 Level music not started: " + musicName + " (SOUND: OFF)");
         }
     }
 
@@ -604,12 +683,16 @@ public class Level extends StageGame {
         joyStick.setVisible(false);
         jumpBackBtn.setVisible(false);
         jumpForwardBtn.setVisible(false);
+        restartBtn.setVisible(false);
+        pauseBtn.setVisible(false);
     }
 
     private void showButtons() {
         joyStick.setVisible(true);
         jumpBackBtn.setVisible(true);
         jumpForwardBtn.setVisible(true);
+        restartBtn.setVisible(true);
+        pauseBtn.setVisible(true);
     }
 
 
@@ -817,13 +900,16 @@ public class Level extends StageGame {
                     }
                     player.touchGround();
                 }
+            } else if (data.name.equals("finish")) {
+                // Финиш достигнут!
+                Gdx.app.log("Level", "🎯 FINISH REACHED! Player touched finish line");
+                levelCompleted();
             }
         } else {
+            // Fallback проверка для финиша (если UserData не установлен)
             if (body == finish) {
-                // Дополнительная проверка - убеждаемся что игрок действительно достиг финиша
-                if (player != null && !player.isHasDestroyed() && state == PLAY) {
-                    levelCompleted();
-                }
+                Gdx.app.log("Level", "🎯 FINISH REACHED! (fallback check)");
+                levelCompleted();
             }
         }
     }
@@ -850,7 +936,7 @@ public class Level extends StageGame {
         timerLabel = new com.badlogic.gdx.scenes.scene2d.ui.Label("", timerStyle);
         timerLabel.setVisible(false);
         addOverlayChild(timerLabel);
-        timerLabel.setPosition(20, getHeight() - 50);
+        timerLabel.setPosition((getWidth() - timerLabel.getWidth()) / 2, getHeight() - 50); // Центр верхней части экрана
 
         // Инициализация таймера уровня
         levelTimerStyle = new com.badlogic.gdx.scenes.scene2d.ui.Label.LabelStyle();
@@ -948,7 +1034,7 @@ public class Level extends StageGame {
             if (upsideDownTimer >= UPSIDE_DOWN_TIMEOUT) {
                 // Время истекло - проигрыш
                 player.destroy();
-                TRONgame.media.playSound("crash.ogg");
+                TRONgame.playSoundSafe("crash.ogg");
                 levelFailed();
             }
         }
@@ -964,15 +1050,14 @@ public class Level extends StageGame {
         }
         stopLevelTimer();
         stopMusic();
-
         hideButtons();
 
         addOverlayChild(levelCompletedScreen);
         // Перед показом экрана обновляем данные времени и уровня
         levelCompletedScreen.setData(levelId, getLevelTimer());
         levelCompletedScreen.start();
-
-        TRONgame.media.playSound("level_win_new.ogg");
+        saveLevelCompletion();
+        TRONgame.playSoundSafe("level_win_new.ogg");
     }
 
     private void levelFailed() {
@@ -1134,12 +1219,12 @@ public class Level extends StageGame {
         if (keycode == Input.Keys.ESCAPE || keycode == Input.Keys.BACK) {
             if (state == PAUSED) {
                 // Если игра в паузе, кнопка "Назад" возвращает к игре
-                TRONgame.media.playSound("new_click.ogg");
+                TRONgame.playSoundSafe("new_click.ogg");
                 resumelevel();
                 return true;
             } else if (state == PLAY) {
                 // Если игра идет, кнопка "Назад" входит в паузу
-                TRONgame.media.playSound("new_click.ogg");
+                TRONgame.playSoundSafe("new_click.ogg");
                 pauseLevel();
                 return true;
             }
@@ -1152,6 +1237,22 @@ public class Level extends StageGame {
         if (levelTimerLabel != null) {
             levelTimerLabel.pack(); // Обновляем размер label
             levelTimerLabel.setPosition(getWidth() - levelTimerLabel.getWidth() - 20, getHeight() - 40);
+        }
+        
+        // Обновляем позицию таймера переворота в центре верхней части экрана
+        if (timerLabel != null) {
+            timerLabel.pack(); // Обновляем размер label
+            timerLabel.setPosition((getWidth() - timerLabel.getWidth()) / 2, getHeight() - 50);
+        }
+        
+        // Обновляем позицию кнопки паузы в верхнем левом углу
+        if (pauseBtn != null) {
+            pauseBtn.setPosition(20, getHeight() - 70);
+        }
+        
+        // Обновляем позицию кнопки рестарта ниже кнопки паузы
+        if (restartBtn != null) {
+            restartBtn.setPosition(20, getHeight() - 140);
         }
     }
 

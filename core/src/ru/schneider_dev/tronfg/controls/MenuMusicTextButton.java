@@ -7,6 +7,7 @@ import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import ru.schneider_dev.tronfg.TRONgame;
+import com.badlogic.gdx.Gdx;
 
 /**
  * Текстовый индикатор состояния музыки для меню
@@ -54,32 +55,40 @@ public class MenuMusicTextButton extends Actor {
     }
     
     public void toggleMusic() {
-        // Просто переключаем состояние
+        // Переключаем состояние ВСЕХ звуков (музыка + звуковые эффекты)
         isMuted = !isMuted;
         updateMusicState();
     }
-    
+
     public void setMuted(boolean muted) {
         this.isMuted = muted;
         updateMusicState();
     }
-    
+
     public boolean isMuted() {
         return isMuted;
     }
-    
+
     private void updateMusicState() {
-        // Обновляем глобальное состояние
+        // Обновляем глобальное состояние ВСЕХ звуков
         TRONgame.isSoundMuted = isMuted;
         
+        // Сохраняем настройки в Data для восстановления после перезапуска
+        if (TRONgame.data != null) {
+            TRONgame.data.saveSoundMuted(isMuted);
+            Gdx.app.log("MenuMusicTextButton", "💾 Sound setting saved: " + (isMuted ? "MUTED" : "UNMUTED"));
+        }
+        
         if (isMuted) {
-            // Выключаем музыку меню
+            // ВСЕ звуки выключены - останавливаем музыку меню
             safePauseMusic("new_menu.ogg");
+            Gdx.app.log("MenuMusicTextButton", "🔇 ALL SOUNDS muted (music + sound effects)");
         } else {
-            // Включаем музыку меню
+            // ВСЕ звуки включены - включаем музыку меню
             if (!TRONgame.media.isMusicPlaying("new_menu.ogg")) {
                 TRONgame.media.playMusic("new_menu.ogg", true);
             }
+            Gdx.app.log("MenuMusicTextButton", "🔊 ALL SOUNDS unmuted (music + sound effects)");
         }
     }
     
@@ -106,7 +115,7 @@ public class MenuMusicTextButton extends Actor {
         if (!isVisible()) return;
         
         // Получаем текст для отображения
-        String musicText = "MUSIC: ";
+        String musicText = "SOUND: ";
         String statusText = isMuted ? "OFF" : "ON";
         
         // Рисуем "MUSIC: " белым цветом

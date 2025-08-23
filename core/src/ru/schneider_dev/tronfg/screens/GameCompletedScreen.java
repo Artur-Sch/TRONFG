@@ -54,7 +54,7 @@ public class GameCompletedScreen extends StageGame {
         doneButton.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
-                TRONgame.media.playSound("new_click.ogg");
+                TRONgame.playSoundSafe("new_click.ogg");
                 // Останавливаем музыку завершения игры
                 TRONgame.media.stopMusic("grid_reflection.ogg");
                 call(ON_DONE);

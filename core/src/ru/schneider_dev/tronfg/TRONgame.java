@@ -31,6 +31,7 @@ import ru.schneider_dev.tronfg.screens.LevelList;
 import ru.schneider_dev.tronfg.screens.GameCompletedScreen;
 import ru.schneider_dev.tronfg.screens.ScoreScreen;
 import ru.schneider_dev.tronfg.utils.Data;
+import ru.schneider_dev.tronfg.utils.ScreenScaler;
 
 
 import java.util.Locale;
@@ -38,10 +39,6 @@ import java.util.Random;
 
 public class TRONgame extends Game {
 
-    public static final int SHOW_BANNER = 1;
-    public static final int HIDE_BANNER = 2;
-    public static final int LOAD_INTERSTITIAL = 3;
-    public static final int SHOW_INTERSTITIAL = 4;
     public static final int OPEN_MARKET = 5;
     public static final int SHRE = 6;
 
@@ -74,7 +71,7 @@ public class TRONgame extends Game {
     private int lastLevelId;
 
     // Массив с именами игровой музыки для случайного выбора
-    private static final String[] GAME_MUSIC = {"new_music1.ogg", "new_music2.ogg", "new_music3.ogg"};
+    public static final String[] GAME_MUSIC = {"new_music1.ogg", "new_music2.ogg", "new_music3.ogg", "new_music4.ogg", "new_music5.ogg"};
     private static final Random random = new Random();
 
     public TRONgame(GameCallback gameCallback) {
@@ -137,10 +134,19 @@ public class TRONgame extends Game {
 
     @Override
     public void create() {
-        StageGame.setAppSize(800, 480);
-        Gdx.input.setCatchBackKey(true);
-
-        Locale locale = Locale.getDefault();
+        // Инициализируем ScreenScaler для поддержки больших экранов
+        ScreenScaler.init();
+        
+        // Устанавливаем базовый размер приложения для альбомной ориентации
+        float baseWidth = 800f;
+        float baseHeight = 480f;
+        
+        // Всегда используем альбомную ориентацию
+        StageGame.setAppSize((int)baseWidth, (int)baseHeight);
+                
+                Gdx.input.setCatchBackKey(true);
+                
+                Locale locale = Locale.getDefault();
         bundle = I18NBundle.createBundle(Gdx.files.internal("MyBundle"), locale);
         path_to_atlas = bundle.get("path");
 
@@ -154,6 +160,8 @@ public class TRONgame extends Game {
         assetManager.load("musics/new_music1.ogg", Music.class);
         assetManager.load("musics/new_music2.ogg", Music.class);
         assetManager.load("musics/new_music3.ogg", Music.class);
+        assetManager.load("musics/new_music4.ogg", Music.class);
+        assetManager.load("musics/new_music5.ogg", Music.class);
         assetManager.load("musics/grid_reflection.ogg", Music.class);
         assetManager.load("sounds/new_click.ogg", Sound.class);
         assetManager.load("sounds/crash.ogg", Sound.class);
@@ -219,7 +227,46 @@ public class TRONgame extends Game {
         starIcon = new com.badlogic.gdx.graphics.g2d.TextureRegion(
                 assetManager.get("png/star.png", com.badlogic.gdx.graphics.Texture.class));
 
+        // Загружаем настройки звука из сохраненных данных
+        loadAudioSettings();
+
         showIntro();
+    }
+
+    /**
+     * Загружает настройки звука из сохраненных данных
+     */
+    private void loadAudioSettings() {
+        if (data != null) {
+            // Загружаем настройки звука
+            isSoundMuted = data.isSoundMuted();
+            
+            // Логируем загруженные настройки
+            Gdx.app.log("TRONgame", "🔊 Audio settings loaded - Sound muted: " + isSoundMuted);
+            
+            // Применяем настройки к текущему состоянию
+            if (isSoundMuted && media != null) {
+                // Если звук выключен, останавливаем текущую музыку
+                media.stopAllMusic();
+            }
+        }
+    }
+
+    /**
+     * Безопасно воспроизводит звук с проверкой настроек
+     * @param soundName имя звукового файла
+     */
+    public static void playSoundSafe(String soundName) {
+        if (!isSoundMuted && media != null) {
+            try {
+                media.playSound(soundName);
+                Gdx.app.log("TRONgame", "🔊 Sound played: " + soundName + " (SOUND: ON)");
+            } catch (Exception e) {
+                Gdx.app.log("TRONgame", "❌ Error playing sound: " + soundName + " - " + e.getMessage());
+            }
+        } else {
+            Gdx.app.log("TRONgame", "🔇 Sound not played: " + soundName + " (SOUND: OFF)");
+        }
     }
 
     private void exitApp() {
@@ -241,8 +288,6 @@ public class TRONgame extends Game {
                 } else if (code == IntroScreen.ON_SCORE) {
                     hideIntro();
                     showScoreScreen(1); // 1 = Intro
-                } else if (code == IntroScreen.ON_BACK) {
-                    exitApp();
                 }
             }
         });
@@ -280,13 +325,10 @@ public class TRONgame extends Game {
 
             }
         });
-        gameCallback.sendMessage(SHOW_BANNER);
     }
 
     private void hideLevelList() {
         levelList = null;
-        gameCallback.sendMessage(HIDE_BANNER);
-
     }
 
     private void showLevel(int id) {
@@ -312,13 +354,10 @@ public class TRONgame extends Game {
             @Override
             public void call(int code) {
                 if (code == Level.ON_RESTART) {
-                    gameCallback.sendMessage(HIDE_BANNER);
-                    gameCallback.sendMessage(SHOW_INTERSTITIAL);
                     hideLevel();
                     // При перезапуске создаем новый уровень с новой случайной музыкой
                     showLevel(lastLevelId);
                 } else if (code == Level.ON_QUIT) {
-                    gameCallback.sendMessage(SHOW_INTERSTITIAL);
                     hideLevel();
                     showLevelList();
                 } else if (code == Level.ON_COMPLETED) {
@@ -331,8 +370,6 @@ public class TRONgame extends Game {
                     // Сохраняем текущую музыку для следующего уровня
                     String currentMusic = level.getMusicName();
                     updateProgress();
-                    gameCallback.sendMessage(SHOW_INTERSTITIAL);
-                    gameCallback.sendMessage(SHOW_BANNER);
                     hideLevel();
                     
                     // Проверяем, завершена ли игра (после 16-го уровня)
@@ -344,18 +381,18 @@ public class TRONgame extends Game {
                         showLevel(lastLevelId + 1, currentMusic);
                     }
                 } else if (code == Level.ON_PAUSED) {
-                    gameCallback.sendMessage(SHOW_BANNER);
+                    // Пауза - ничего не делаем
 
                 } else if (code == Level.ON_RESUME) {
-                    gameCallback.sendMessage(HIDE_BANNER);
+                    // Возобновление - ничего не делаем
 
                 } else if (code == Level.ON_FAILED) {
-                    gameCallback.sendMessage(SHOW_BANNER);
+                    // Уровень провален - ничего не делаем
                 }
             }
         });
 
-        gameCallback.sendMessage(LOAD_INTERSTITIAL);
+        // Инициализация уровня завершена
     }
 
     private void hideLevel() {
@@ -421,6 +458,23 @@ public class TRONgame extends Game {
         if (newProgress > data.getProgress()) {
             data.setProgress(newProgress);
         }
+    }
+    
+    @Override
+    public void resize(int width, int height) {
+        super.resize(width, height);
+        
+        // Обновляем ScreenScaler при изменении размера экрана
+        ScreenScaler.updateScreenSize();
+        
+        // Всегда поддерживаем альбомную ориентацию
+        float baseWidth = 800f;
+        float baseHeight = 480f;
+        StageGame.setAppSize((int)baseWidth, (int)baseHeight);
+        
+        Gdx.app.log("TRONgame", "Screen resized to: " + width + "x" + height);
+        Gdx.app.log("TRONgame", "App size updated to: " + (int)baseWidth + "x" + (int)baseHeight);
+        Gdx.app.log("TRONgame", ScreenScaler.getDebugInfo());
     }
 
 }

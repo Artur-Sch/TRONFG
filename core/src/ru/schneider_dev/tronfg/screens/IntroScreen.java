@@ -107,8 +107,8 @@ public class IntroScreen extends StageGame {
         playBtn.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
-                onClickPlay();
-                TRONgame.media.playSound(CLICK_SOUND);
+                TRONgame.playSoundSafe(CLICK_SOUND);
+                call(ON_PLAY);
             }
         });
     }
@@ -134,8 +134,8 @@ public class IntroScreen extends StageGame {
         scoreBtn.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
-                onClickScore();
-                TRONgame.media.playSound(CLICK_SOUND);
+                TRONgame.playSoundSafe(CLICK_SOUND);
+                call(ON_SCORE);
             }
         });
     }

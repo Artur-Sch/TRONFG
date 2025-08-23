@@ -51,8 +51,8 @@ public class LevelFailedScreen extends Group {
         retry.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
+                TRONgame.playSoundSafe("new_click.ogg");
                 fire(new MessageEvent(ON_RETRY));
-                TRONgame.media.playSound("new_click.ogg");
             }
         });
 
@@ -68,8 +68,8 @@ public class LevelFailedScreen extends Group {
         quit.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
+                TRONgame.playSoundSafe("new_click.ogg");
                 fire(new MessageEvent(ON_QUIT));
-                TRONgame.media.playSound("new_click.ogg");
             }
         });
     }
