@@ -78,8 +78,8 @@ public class LevelCompletedScreen extends Group {
         restart.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
+                TRONgame.playSoundSafe("new_click.ogg");
                 fire(new MessageEvent(ON_RESTART));
-                TRONgame.media.playSound("new_click.ogg");
             }
         });
 
@@ -93,8 +93,8 @@ public class LevelCompletedScreen extends Group {
         next.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
+                TRONgame.playSoundSafe("new_click.ogg");
                 fire(new MessageEvent(ON_NEXT));
-                TRONgame.media.playSound("new_click.ogg");
             }
         });
 
@@ -109,8 +109,8 @@ public class LevelCompletedScreen extends Group {
         exit.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
+                TRONgame.playSoundSafe("new_click.ogg");
                 fire(new MessageEvent(ON_DONE));
-                TRONgame.media.playSound("new_click.ogg");
             }
         });
     }

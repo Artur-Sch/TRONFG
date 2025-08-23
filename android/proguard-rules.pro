@@ -43,3 +43,33 @@
    boolean reportFixture(long);
    float   reportRayFixture(long, float, float, float, float, float);
 }
+
+# Сохранение файла деобфускации
+-printmapping mapping.txt
+
+# Игнорирование desktop-специфичных классов
+-dontwarn java.awt.**
+-dontwarn javax.swing.**
+-dontwarn javax.imageio.**
+-dontwarn javax.sound.**
+-dontwarn org.lwjgl.opengles.**
+-dontwarn com.apple.eio.**
+
+# Сохранение важных классов для игр
+-keep class ru.schneider_dev.tronfg.** { *; }
+-keep class com.badlogic.gdx.** { *; }
+-keep class com.boontaran.** { *; }
+
+# Сохранение нативных методов
+-keepclasseswithmembernames class * {
+    native <methods>;
+}
+
+# Сохранение enum'ов
+-keepclassmembers enum * {
+    public static **[] values();
+    public static ** valueOf(java.lang.String);
+}
+
+# Игнорирование отсутствующих классов
+-ignorewarnings

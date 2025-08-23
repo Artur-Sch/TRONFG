@@ -1,13 +1,16 @@
 apply plugin: "java"
 
-sourceCompatibility = 11
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
 sourceSets.main.java.srcDirs = [ "src/" ]
 
 project.ext.mainClassName = "ru.schneider_dev.tronfg.desktop.DesktopLauncher"
 project.ext.assetsDir = new File("../android/assets");
 
 task run(dependsOn: classes, type: JavaExec) {
-    main = project.mainClassName
+    mainClass = project.mainClassName
     classpath = sourceSets.main.runtimeClasspath
     standardInput = System.in
     workingDir = project.assetsDir
@@ -15,7 +18,7 @@ task run(dependsOn: classes, type: JavaExec) {
 }
 
 task debug(dependsOn: classes, type: JavaExec) {
-    main = project.mainClassName
+    mainClass = project.mainClassName
     classpath = sourceSets.main.runtimeClasspath
     standardInput = System.in
     workingDir = project.assetsDir
@@ -36,20 +39,21 @@ task dist(type: Jar) {
 
 dist.dependsOn classes
 
-eclipse {
-    project {
-        name = appName + "-desktop"
-        linkedResource name: 'assets', type: '2', location: 'PARENT-1-PROJECT_LOC/android/assets'
-    }
-}
+// Убираем устаревшую конфигурацию eclipse
+// eclipse {
+//     project {
+//         name = appName + "-desktop"
+//         linkedResource name: 'assets', type: '2', location: 'PARENT-1-PROJECT_LOC/android/assets'
+//     }
+// }
 
-task afterEclipseImport(description: "Post processing after project generation", group: "IDE") {
-  doLast {
-    def classpath = new XmlParser().parse(file(".classpath"))
-    new Node(classpath, "classpathentry", [ kind: 'src', path: 'assets' ]);
-    def writer = new FileWriter(file(".classpath"))
-    def printer = new XmlNodePrinter(new PrintWriter(writer))
-    printer.setPreserveWhitespace(true)
-    printer.print(classpath)
-  }
-}
+// task afterEclipseImport(description: "Post processing after project generation", group: "IDE") {
+//   doLast {
+//     def classpath = new XmlParser().parse(file(".classpath"))
+//     new Node(classpath, "classpathentry", [ kind: 'src', path: 'assets' ]);
+//     def writer = new FileWriter(file(".classpath"))
+//     def printer = new XmlNodePrinter(new PrintWriter(writer))
+//     printer.setPreserveWhitespace(true)
+//     printer.print(classpath)
+//   }
+// }

@@ -52,7 +52,10 @@ public class TextButton extends Group {
         
         // Если ширина равна 0, используем примерную ширину на основе длины текста
         if (width <= 0) {
-            width = text.length() * font.getData().spaceWidth * 1.2f;
+            // Используем ширину символа 'A' как базовую для расчета
+            float charWidth = font.getData().getGlyph('A') != null ? 
+                font.getData().getGlyph('A').width : 10f;
+            width = text.length() * charWidth * 1.2f;
         }
         
         setSize(width, height);
@@ -137,7 +140,10 @@ public class TextButton extends Group {
         
         float width = normalText.getPrefWidth();
         if (width <= 0) {
-            width = text.length() * normalText.getStyle().font.getData().spaceWidth * 1.2f;
+            // Используем ширину символа 'A' как базовую для расчета
+            float charWidth = normalText.getStyle().font.getData().getGlyph('A') != null ? 
+                normalText.getStyle().font.getData().getGlyph('A').width : 10f;
+            width = text.length() * charWidth * 1.2f;
         }
         setSize(width, normalText.getPrefHeight());
     }
@@ -149,7 +155,10 @@ public class TextButton extends Group {
         
         float width = normalText.getPrefWidth();
         if (width <= 0) {
-            width = normalText.getText().length() * normalText.getStyle().font.getData().spaceWidth * 1.2f;
+            // Используем ширину символа 'A' как базовую для расчета
+            float charWidth = normalText.getStyle().font.getData().getGlyph('A') != null ? 
+                normalText.getStyle().font.getData().getGlyph('A').width : 10f;
+            width = normalText.getText().length() * charWidth * 1.2f;
         }
         setSize(width, normalText.getPrefHeight());
     }
@@ -158,7 +167,10 @@ public class TextButton extends Group {
     public void updateSize() {
         float width = normalText.getPrefWidth();
         if (width <= 0) {
-            width = normalText.getText().length() * normalText.getStyle().font.getData().spaceWidth * 1.2f;
+            // Используем ширину символа 'A' как базовую для расчета
+            float charWidth = normalText.getStyle().font.getData().getGlyph('A') != null ? 
+                normalText.getStyle().font.getData().getGlyph('A').width : 10f;
+            width = normalText.getText().length() * charWidth * 1.2f;
         }
         setSize(width, normalText.getPrefHeight());
     }

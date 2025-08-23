@@ -69,6 +69,37 @@ public class Media {
         }
     }
 
+    /**
+     * Останавливает всю музыку
+     */
+    public void stopAllMusic() {
+        try {
+            // Останавливаем все известные музыкальные файлы
+            String[] musicFiles = {
+                "new_menu.ogg",
+                "new_music1.ogg",
+                "new_music2.ogg",
+                "new_music3.ogg",
+                "new_music4.ogg",
+                "new_music5.ogg"
+            };
+
+            for (String musicName : musicFiles) {
+                try {
+                    Music music = assetManager.get("musics/" + musicName, Music.class);
+                    if (music != null && music.isPlaying()) {
+                        music.stop();
+                    }
+                } catch (Exception e) {
+                    // Игнорируем ошибки для отдельных файлов
+                }
+            }
+        } catch (Exception e) {
+            // Логируем общую ошибку
+            System.out.println("Error stopping all music: " + e.getMessage());
+        }
+    }
+
     public boolean update() {
         return assetManager.update();
     }

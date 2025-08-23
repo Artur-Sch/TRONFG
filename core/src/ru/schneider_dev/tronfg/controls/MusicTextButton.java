@@ -9,6 +9,9 @@ import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import ru.schneider_dev.tronfg.TRONgame;
 
 import java.util.Random;
+import com.badlogic.gdx.Gdx;
+
+import static ru.schneider_dev.tronfg.TRONgame.GAME_MUSIC;
 
 /**
  * Текстовый индикатор состояния музыки
@@ -29,7 +32,6 @@ public class MusicTextButton extends Actor {
     private static final Color OFF_COLOR = Color.RED;
     
     // Массив с именами игровой музыки для случайного выбора
-    private static final String[] GAME_MUSIC = {"new_music1.ogg", "new_music2.ogg", "new_music3.ogg"};
     private static final Random random = new Random();
     
     // Флаг для отслеживания, была ли музыка выключена
@@ -70,18 +72,8 @@ public class MusicTextButton extends Actor {
     }
     
     public void toggleMusic() {
-        // Запоминаем предыдущее состояние
-        boolean previousState = isMuted;
-        
-        // Переключаем состояние
+        // Переключаем состояние ВСЕХ звуков (музыка уровня + звуковые эффекты)
         isMuted = !isMuted;
-        
-        // Если музыка была выключена и теперь включается, выбираем новую мелодию
-        if (previousState && !isMuted) {
-            // Музыка была выключена, теперь включается - выбираем новую мелодию
-            selectNewRandomMusic();
-        }
-        
         updateMusicState();
     }
     
@@ -132,19 +124,34 @@ public class MusicTextButton extends Actor {
     }
     
     private void updateMusicState() {
-        // Обновляем глобальное состояние
+        // Обновляем глобальное состояние ВСЕХ звуков
         TRONgame.isSoundMuted = isMuted;
         
+        // Сохраняем настройки в Data для восстановления после перезапуска
+        if (TRONgame.data != null) {
+            TRONgame.data.saveSoundMuted(isMuted);
+            Gdx.app.log("MusicTextButton", "💾 Sound setting saved: " + (isMuted ? "MUTED" : "UNMUTED"));
+        }
+        
+        // В ИГРЕ кнопка SOUND управляет ВСЕМИ звуками!
         if (isMuted) {
-            // Выключаем музыку в игре
-            safeStopMusic("new_menu.ogg");
-            safeStopMusic("new_music1.ogg");
-            safeStopMusic("new_music2.ogg");
-            safeStopMusic("new_music3.ogg");
+            // ВСЕ звуки выключены - останавливаем музыку уровня
+            if (TRONgame.media != null) {
+                for (String musicName : GAME_MUSIC) {
+                    try {
+                        if (TRONgame.media.isMusicPlaying(musicName)) {
+                            TRONgame.media.stopMusic(musicName);
+                        }
+                    } catch (Exception e) {
+                        // Игнорируем ошибки
+                    }
+                }
+            }
+            Gdx.app.log("MusicTextButton", "🔇 ALL SOUNDS muted (level music + sound effects)");
         } else {
-            // Включаем музыку в игре - НЕ запускаем музыку из меню паузы
-            // Просто разрешаем воспроизведение музыки в игре
-            // Музыка будет воспроизводиться автоматически из уровня
+            // ВСЕ звуки включены - включаем музыку уровня (если она была остановлена)
+            // Музыка уровня должна автоматически запуститься из Level.java
+            Gdx.app.log("MusicTextButton", "🔊 ALL SOUNDS unmuted (level music + sound effects)");
         }
     }
     
@@ -157,7 +164,7 @@ public class MusicTextButton extends Actor {
             System.out.println("Music file " + musicName + " is not loaded or cannot be stopped");
         }
     }
-    
+
     @Override
     public void draw(com.badlogic.gdx.graphics.g2d.Batch batch, float parentAlpha) {
         if (!isVisible()) return;

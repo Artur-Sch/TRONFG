@@ -6,7 +6,7 @@
 
     <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="35" />
     
-    <!-- Поддержка больших экранов -->
+    <!-- Поддержка всех размеров экранов и складных устройств -->
     <supports-screens
         android:smallScreens="true"
         android:normalScreens="true"
@@ -14,6 +14,14 @@
         android:xlargeScreens="true"
         android:anyDensity="true"
         android:resizeable="true" />
+    
+    <!-- Поддержка складных устройств -->
+    <uses-feature
+        android:name="android.hardware.type.pc"
+        android:required="false" />
+    <uses-feature
+        android:name="android.software.freeform_window_management"
+        android:required="false" />
 
     <application
         android:icon="@mipmap/ic_launcher"
@@ -21,7 +29,8 @@
         android:theme="@style/GdxTheme"
         android:resizeableActivity="true"
         android:supportsPictureInPicture="true"
-        android:hardwareAccelerated="true">
+        android:hardwareAccelerated="true"
+        android:immersive="true">
         
 
         
@@ -29,12 +38,15 @@
             android:name=".AndroidLauncher"
             android:exported="true"
             android:label="@string/app_name" 
-            android:screenOrientation="sensorLandscape"
-            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|smallestScreenSize|uiMode"
+            android:screenOrientation="landscape"
+            android:configChanges="keyboard|keyboardHidden|navigation|screenSize|screenLayout|smallestScreenSize|uiMode|density"
             android:hardwareAccelerated="true"
             android:enableOnBackInvokedCallback="false"
             android:resizeableActivity="true"
-            android:supportsPictureInPicture="true">
+            android:supportsPictureInPicture="true"
+            android:maxAspectRatio="3.0"
+            android:minAspectRatio="1.0"
+            android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

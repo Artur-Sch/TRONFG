@@ -26,13 +26,32 @@ import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
 
+import static ru.schneider_dev.tronfg.controls.TextButton.*;
+
 /**
  * Экран отображения результатов игрока
  * 
+ * Структура таблицы SCORE:
+ * | RANK | LEVEL | USER TIME | LEVEL BEST |
+ * |------|-------|-----------|------------|
+ * | 2/5  |   1   |   0:18    |   0:18     | ← Ранг пользователя, уровень, лучшее время пользователя, лучшее время уровня
+ * | 5/5  |   2   |   0:25    |   0:15     | ← Пользователь на 5-м месте из 5, его время 25 сек, лучшее время уровня 15 сек
+ * 
  * Логика работы:
  * 1. При открытии экрана загружается кеш для быстрого отображения данных
- * 2. Кнопка UPDATE всегда работает и обновляет данные из Supabase
+ * 2. Кнопка REFRESH RANKINGS обновляет данные из Supabase
  * 3. Кеш не блокирует обновления, а используется только для быстрого отображения
+ * 
+ * 🚀 ОПТИМИЗАЦИЯ ЗАПРОСОВ (v2.0):
+ * - РАНЬШЕ: N вызовов getRank() + N вызовов getBestTime() = до 32 запросов
+ * - ТЕПЕРЬ: 1 вызов getAllUserRanks() + 1 вызов getAllLevelsBestTimes() = 2 запроса
+ * - ЭКОНОМИЯ: до 30 сетевых запросов! (15x быстрее)
+ * 
+ * 🎯 АВТОМАТИЧЕСКАЯ ОТПРАВКА РЕЗУЛЬТАТОВ (v2.1):
+ * - Результаты отправляются автоматически при завершении каждого уровня
+ * - Отправляется только ЛУЧШИЙ результат пользователя для каждого уровня
+ * - ScoreScreen теперь только получает данные для отображения
+ * - Нет дублирования отправки результатов!
  */
 public class ScoreScreen extends StageGame {
 
@@ -55,6 +74,7 @@ public class ScoreScreen extends StageGame {
 	private long lastUpdateTime = 0;
 	private static final long CACHE_TTL_MS = 5 * 60 * 1000L; // 5 минут в миллисекундах
 	private int sourceScreen; // Откуда пришли: 1 - Intro, 2 - LevelList
+	private int[] completedRequests = {0}; // Счетчик завершенных запросов для оптимизации
 
 	public ScoreScreen(int sourceScreen) {
 		this.sourceScreen = sourceScreen;
@@ -69,6 +89,14 @@ public class ScoreScreen extends StageGame {
 		
 		setupScoreTable();
 		setupBackButton();
+
+		updateRankings();
+		// Если есть кешированные лучшие времена, применяем их сразу
+		if (!cachedBestTimes.isEmpty()) {
+			applyCachedData();
+		}
+		
+		Gdx.app.log("ScoreScreen", "ScoreScreen setup completed");
 	}
 	
 	private void loadCachedData() {
@@ -84,16 +112,15 @@ public class ScoreScreen extends StageGame {
 				if (rankHash != 0) {
 					String rank = decodeRankFromHash(rankHash);
 					cachedRanks.put(i, rank);
+					Gdx.app.log("ScoreScreen", "Loaded cached rank for level " + i + ": " + rank);
 				}
 				if (bestTime > 0f) {
 					cachedBestTimes.put(i, bestTime);
+					Gdx.app.log("ScoreScreen", "Loaded cached best time for level " + i + ": " + bestTime);
 				}
 			}
-		}
-		
-		// Применяем кешированные данные если они есть
-		if (!cachedRanks.isEmpty() || !cachedBestTimes.isEmpty()) {
-			applyCachedData();
+			
+			Gdx.app.log("ScoreScreen", "Cache loaded: " + cachedRanks.size() + " ranks, " + cachedBestTimes.size() + " best times");
 		}
 	}
 	
@@ -106,10 +133,14 @@ public class ScoreScreen extends StageGame {
 			for (Map.Entry<Integer, String> e : cachedRanks.entrySet()) {
 				int hash = encodeRankToHash(e.getValue());
 				data.saveInt("cache_rank_" + e.getKey(), hash);
+				Gdx.app.log("ScoreScreen", "Saved cached rank for level " + e.getKey() + ": " + e.getValue());
 			}
 			for (Map.Entry<Integer, Float> e : cachedBestTimes.entrySet()) {
 				data.saveFloat("cache_best_" + e.getKey(), e.getValue());
+				Gdx.app.log("ScoreScreen", "Saved cached best time for level " + e.getKey() + ": " + e.getValue());
 			}
+			
+			Gdx.app.log("ScoreScreen", "Cache saved: " + cachedRanks.size() + " ranks, " + cachedBestTimes.size() + " best times");
 		}
 	}
 	
@@ -147,12 +178,14 @@ public class ScoreScreen extends StageGame {
 	}
 
 	private void setupBackground() {
+		Gdx.app.log("ScoreScreen", "Setting up background");
 		Image bg = new Image(TRONgame.atlas.findRegion("intro_bg"));
 		addBackground(bg, true, false);
+		Gdx.app.log("ScoreScreen", "Background added");
 	}
 
 	private void setupTitle() {
-		titleLabel = new TextButton("SCORE BOARD", TRONgame.tr2nFont, Color.WHITE, Color.GOLD);
+		titleLabel = new TextButton("SCORE BOARD", TRONgame.tr2nFont, Color.GOLD, Color.GOLD);
 		titleLabel.setFontScale(1.5f);
 		addChild(titleLabel);
 
@@ -170,17 +203,23 @@ public class ScoreScreen extends StageGame {
 		Label rankHeader = new Label("RANK", headerStyle);
 		Label levelHeader = new Label("LEVEL", headerStyle);
 		Label timeHeader = new Label("TIME", headerStyle);
-		Label totalTimeHeader = new Label("BEST", headerStyle);
+		Label levelBest = new Label("BEST", headerStyle);
+
+		// Уменьшаем размер заголовков
+		rankHeader.setFontScale(0.8f);
+		levelHeader.setFontScale(0.8f);
+		timeHeader.setFontScale(0.8f);
+		levelBest.setFontScale(0.8f);
 
 		rankHeader.setAlignment(Align.center);
 		levelHeader.setAlignment(Align.center);
 		timeHeader.setAlignment(Align.center);
-		totalTimeHeader.setAlignment(Align.center);
+		levelBest.setAlignment(Align.center);
 
 		scoreTable.add(rankHeader).width(100).height(40).padRight(40);
 		scoreTable.add(levelHeader).width(140).height(40).padRight(10);
 		scoreTable.add(timeHeader).width(140).height(40).padRight(30);
-		scoreTable.add(totalTimeHeader).width(140).height(40);
+		scoreTable.add(levelBest).width(140).height(40);
 		scoreTable.row();
 
 		List<ScoreEntry> scores = getScoreData();
@@ -202,22 +241,25 @@ public class ScoreScreen extends StageGame {
 			for (int i = 0; i < scores.size(); i++) {
 				ScoreEntry entry = scores.get(i);
 				
+				// Определяем стиль в зависимости от того, пройден ли уровень
+				boolean isCompleted = entry.levelTime > 0;
+				Color textColor = isCompleted ? Color.WHITE : Color.GRAY;
+				
 				Label rankLabel = new Label("-", scoreStyle);
 				Label levelLabel = new Label("Level " + entry.levelId, scoreStyle);
-				Label timeLabel = new Label(formatTime(entry.levelTime), scoreStyle);
-				Label bestLabel = new Label("-", scoreStyle);
+				Label timeLabel = new Label(isCompleted ? formatTime(entry.levelTime) : "---", scoreStyle);
+				Label bestLabel = new Label("-", scoreStyle); // Для всех уровней показываем "-", который заменится на реальное время
 
 				rankLabel.setAlignment(Align.center);
 				levelLabel.setAlignment(Align.center);
 				timeLabel.setAlignment(Align.center);
 				bestLabel.setAlignment(Align.center);
 
-				if (i == 0) {
-					rankLabel.setColor(Color.WHITE);
-					levelLabel.setColor(Color.WHITE);
-					timeLabel.setColor(Color.WHITE);
-					bestLabel.setColor(Color.WHITE);
-				}
+				// Применяем цвета
+				rankLabel.setColor(textColor);
+				levelLabel.setColor(textColor);
+				timeLabel.setColor(textColor);
+				bestLabel.setColor(textColor);
 
 				scoreTable.add(rankLabel).width(100).height(30).padRight(40);
 				scoreTable.add(levelLabel).width(140).height(30).padRight(20);
@@ -225,8 +267,11 @@ public class ScoreScreen extends StageGame {
 				scoreTable.add(bestLabel).width(140).height(30);
 				scoreTable.row();
 
-				// Карты для обновления из БД
-				levelIdToRankLabel.put(entry.levelId, rankLabel);
+				// Карты для обновления из БД (ранги только для пройденных, лучшие времена для всех)
+				if (isCompleted) {
+					levelIdToRankLabel.put(entry.levelId, rankLabel);
+				}
+				// Лучшие времена нужны для всех уровней
 				levelIdToBestLabel.put(entry.levelId, bestLabel);
 				levelIdToTimeLabel.put(entry.levelId, timeLabel);
 			}
@@ -255,7 +300,7 @@ public class ScoreScreen extends StageGame {
 	}
 
 	private void setupUpdateButton() {
-		updateButton = new TextButton("UPDATE RANKINGS", TRONgame.tr2nFont, Color.WHITE, Color.BLUE);
+		updateButton = new TextButton("REFRESH RANKINGS", TRONgame.tr2nFont, TextButton.NEON_WHITE, TextButton.NEON_BLUE);
 		addChild(updateButton);
 		centerHorizontally(updateButton);
 		updateButton.setY(getHeight() - 120);
@@ -263,8 +308,8 @@ public class ScoreScreen extends StageGame {
 		updateButton.addListener(new ClickListener() {
 			@Override
 			public void clicked(InputEvent event, float x, float y) {
+				TRONgame.playSoundSafe("new_click.ogg");
 				updateRankings();
-				TRONgame.media.playSound("new_click.ogg");
 			}
 		});
 	}
@@ -272,105 +317,180 @@ public class ScoreScreen extends StageGame {
 	private void updateRankings() {
 		// Кнопка UPDATE всегда работает - убираем проверку кеша
 		updateButton.setTouchable(Touchable.disabled);
-		updateButton.setText("UPDATING...");
-		
-		List<ScoreEntry> scores = getScoreData();
-		if (scores.isEmpty()) {
-			updateButton.setText("NO RESULTS");
-			updateButton.setTouchable(Touchable.enabled);
-			return;
-		}
-		
+		updateButton.setColor(NEON_BLUE);
+		updateButton.setText("REFRESHING...");
+
+		// Теперь результаты уже отправлены автоматически при завершении уровней,
+		// поэтому сразу получаем обновленные данные
 		String userId = TRONgame.data.getUserId();
-		
-		// Сначала отправляем результаты для всех пройденных уровней
-		sendAllResults(userId, scores, 0);
+		getAllDataOptimized(userId);
 	}
 	
 	private void applyCachedData() {
+		Gdx.app.log("ScoreScreen", "Applying cached data...");
+		
 		for (Map.Entry<Integer, String> entry : cachedRanks.entrySet()) {
 			Label rankLabel = levelIdToRankLabel.get(entry.getKey());
 			if (rankLabel != null) {
 				rankLabel.setText(entry.getValue());
+				Gdx.app.log("ScoreScreen", "Applied cached rank for level " + entry.getKey() + ": " + entry.getValue());
 			}
 		}
 		
-		for (Map.Entry<Integer, Float> entry : cachedBestTimes.entrySet()) {
-			int lvl = entry.getKey();
-			float globalBest = entry.getValue();
-			Label bestLabel = levelIdToBestLabel.get(lvl);
-			if (bestLabel != null) {
-				bestLabel.setText(formatTime(globalBest));
+		// Применяем кешированные лучшие времена для всех уровней
+		for (int levelId = 1; levelId <= 16; levelId++) {
+			if (cachedBestTimes.containsKey(levelId)) {
+				float globalBest = cachedBestTimes.get(levelId);
+				Label bestLabel = levelIdToBestLabel.get(levelId);
+				if (bestLabel != null) {
+					bestLabel.setText(formatTime(globalBest));
+					Gdx.app.log("ScoreScreen", "Applied cached best time for level " + levelId + ": " + globalBest);
+				}
 			}
 		}
 	}
 	
-	private void sendAllResults(String userId, List<ScoreEntry> scores, int currentIndex) {
-		if (currentIndex >= scores.size()) {
-			// Все результаты отправлены, теперь получаем ранги
-			getAllRanks(userId, scores, 0);
-			return;
-		}
+	/**
+	 * Новый оптимизированный метод для получения ВСЕХ данных за два запроса:
+	 * 1. getAllUserRanks - ранги пользователя по всем уровням
+	 * 2. getAllLevelsBestTimes - лучшие времена всех уровней
+	 * 
+	 * Вместо множественных вызовов getRank() и getBestTime() для каждого уровня,
+	 * теперь делаем только 2 запроса к базе данных!
+	 * 
+	 * Результаты уже отправлены автоматически при завершении уровней,
+	 * поэтому здесь мы только получаем обновленные данные для отображения.
+	 */
+	private void getAllDataOptimized(String userId) {
+		Gdx.app.log("ScoreScreen", "🚀 Starting optimized data retrieval: user ranks + best times in 2 requests");
+		Gdx.app.log("ScoreScreen", "💡 Note: Results are already submitted automatically when levels are completed!");
 		
-		ScoreEntry entry = scores.get(currentIndex);
-		// Получаем лучшее время пользователя для этого уровня
-		float bestUserTime = getBestUserTimeForLevel(entry.levelId, entry.levelTime);
+		// Сбрасываем счетчик для отслеживания завершения обоих запросов
+		completedRequests[0] = 0;
+		final int totalRequests = 2;
 		
-		leaderboardService.submitResult(userId, entry.levelId, bestUserTime, 
-			new LeaderboardService.LeaderboardCallback() {
-				@Override
-				public void onSuccess(int rank, int totalPlayers, float bestTime) {
-					// Отправляем следующий результат
-					sendAllResults(userId, scores, currentIndex + 1);
-				}
-				
-				@Override
-				public void onError(String error) {
-					// Продолжаем с следующим уровнем даже при ошибке
-					sendAllResults(userId, scores, currentIndex + 1);
-				}
-			});
-	}
-	
-	private void getAllRanks(String userId, List<ScoreEntry> scores, int currentIndex) {
-		if (currentIndex >= scores.size()) {
-			// Все ранги получены, обновляем кеш и кнопку
-			lastUpdateTime = System.currentTimeMillis();
-			saveCachedData();
-			Gdx.app.postRunnable(() -> {
-				updateButton.setText("RANKINGS UPDATED");
-				updateButton.setTouchable(Touchable.enabled);
-			});
-			return;
-		}
-		
-		ScoreEntry entry = scores.get(currentIndex);
-		final int levelId = entry.levelId;
-		
-		leaderboardService.getRank(userId, levelId, new LeaderboardService.LeaderboardCallback() {
+		// 1. Получаем ранги пользователя по всем уровням за один запрос
+		Gdx.app.log("ScoreScreen", "📊 Request 1/2: Getting user ranks for all levels...");
+		leaderboardService.getAllUserRanks(userId, new LeaderboardService.AllUserRanksCallback() {
 			@Override
-			public void onSuccess(int rank, int total, float best) {
-				// Сохраняем в кеш
-				cachedRanks.put(levelId, rank + "/" + total);
-				cachedBestTimes.put(levelId, best);
+			public void onSuccess(Map<Integer, Integer> levelToRank, Map<Integer, Integer> levelToTotalPlayers, Map<Integer, Float> levelToUserBestTime) {
+				Gdx.app.log("ScoreScreen", "✅ User ranks received: " + levelToRank.size() + " levels");
 				
-				Label rankLbl = levelIdToRankLabel.get(levelId);
-				Label bestLbl = levelIdToBestLabel.get(levelId);
-				if (rankLbl != null || bestLbl != null) {
-					Gdx.app.postRunnable(() -> {
-						if (rankLbl != null) rankLbl.setText(rank + "/" + total);
-						if (bestLbl != null) bestLbl.setText(formatTime(best));
-					});
+				// Обновляем кеш и отображение для всех уровней
+				for (int levelId = 1; levelId <= 16; levelId++) {
+					if (levelToRank.containsKey(levelId)) {
+						final int rank = levelToRank.get(levelId);
+						final int totalPlayers = levelToTotalPlayers.get(levelId);
+						final float userBestTime = levelToUserBestTime.get(levelId);
+						final int finalLevelId = levelId;
+						
+						// Сохраняем ранг в кеш
+						cachedRanks.put(levelId, formatRank(rank, totalPlayers));
+						
+						// Обновляем отображение РАНГА
+						Label rankLabel = levelIdToRankLabel.get(levelId);
+						if (rankLabel != null) {
+							Gdx.app.postRunnable(() -> {
+								rankLabel.setText(formatRank(rank, totalPlayers));
+								Gdx.app.log("ScoreScreen", "Updated rank label for level " + finalLevelId + " to: " + formatRank(rank, totalPlayers));
+							});
+						}
+						
+						// Обновляем отображение ВРЕМЕНИ ПОЛЬЗОВАТЕЛЯ (колонка TIME)
+						Label timeLabel = levelIdToTimeLabel.get(levelId);
+						if (timeLabel != null && userBestTime > 0) {
+							Gdx.app.postRunnable(() -> {
+								timeLabel.setText(formatTime(userBestTime));
+								Gdx.app.log("ScoreScreen", "Updated user time label for level " + finalLevelId + " to: " + formatTime(userBestTime));
+							});
+						}
+					}
 				}
-				// Получаем ранг для следующего уровня
-				getAllRanks(userId, scores, currentIndex + 1);
+				
+				// Отмечаем завершение первого запроса
+				completedRequests[0]++;
+				Gdx.app.log("ScoreScreen", "📊 Request 1/2 completed successfully");
+				checkAllRequestsCompleted();
 			}
 			
 			@Override
 			public void onError(String error) {
-				// Продолжаем с следующим уровнем даже при ошибке
-				getAllRanks(userId, scores, currentIndex + 1);
+				Gdx.app.log("ScoreScreen", "❌ Error in user ranks request: " + error);
+				// Отмечаем завершение первого запроса (с ошибкой)
+				completedRequests[0]++;
+				checkAllRequestsCompleted();
 			}
+		});
+		
+		// 2. Получаем лучшие времена всех уровней за один запрос
+		Gdx.app.log("ScoreScreen", "⏱️ Request 2/2: Getting best times for all levels...");
+		leaderboardService.getAllLevelsBestTimes(new LeaderboardService.AllLevelsBestTimesCallback() {
+			@Override
+			public void onSuccess(Map<Integer, Float> levelToBestTime, Map<Integer, Integer> levelToTotalPlayers) {
+				Gdx.app.log("ScoreScreen", "✅ Best times received: " + levelToBestTime.size() + " levels");
+				
+				// Обновляем кеш и отображение для всех уровней
+				for (int levelId = 1; levelId <= 16; levelId++) {
+					if (levelToBestTime.containsKey(levelId)) {
+						final float bestTime = levelToBestTime.get(levelId);
+						final int finalLevelId = levelId;
+						cachedBestTimes.put(levelId, bestTime);
+						
+						// Обновляем отображение ЛУЧШЕГО ВРЕМЕНИ УРОВНЯ (колонка BEST)
+						Label bestLabel = levelIdToBestLabel.get(levelId);
+						if (bestLabel != null) {
+							Gdx.app.postRunnable(() -> {
+								bestLabel.setText(formatTime(bestTime));
+								Gdx.app.log("ScoreScreen", "Updated level best time label for level " + finalLevelId + " to: " + formatTime(bestTime));
+							});
+						}
+					}
+				}
+				
+				// Отмечаем завершение второго запроса
+				completedRequests[0]++;
+				Gdx.app.log("ScoreScreen", "⏱️ Request 2/2 completed successfully");
+				checkAllRequestsCompleted();
+			}
+			
+			@Override
+			public void onError(String error) {
+				Gdx.app.log("ScoreScreen", "❌ Error in best times request: " + error);
+				// Отмечаем завершение второго запроса (с ошибкой)
+				completedRequests[0]++;
+				checkAllRequestsCompleted();
+			}
+		});
+	}
+	
+	/**
+	 * Проверяет, завершены ли все запросы, и обновляет UI
+	 */
+	private void checkAllRequestsCompleted() {
+		if (completedRequests[0] >= 2) {
+			// Все запросы завершены (успешно или с ошибками)
+			lastUpdateTime = System.currentTimeMillis();
+			saveCachedData();
+			Gdx.app.log("ScoreScreen", "All requests completed, updating cache and button");
+			Gdx.app.postRunnable(() -> {
+				updateButton.setText("RANKINGS REFRESHED");
+				updateButton.setColor(NEON_GREEN);
+				updateButton.setTouchable(Touchable.enabled);
+			});
+		}
+	}
+	
+	/**
+	 * Обрабатывает ошибки в оптимизированных запросах
+	 */
+	private void handleOptimizedRequestError(String requestType, String error) {
+		Gdx.app.log("ScoreScreen", "Error in " + requestType + ": " + error);
+		
+		// В случае ошибки, показываем пользователю информацию
+		Gdx.app.postRunnable(() -> {
+			updateButton.setText("UPDATE FAILED");
+			updateButton.setColor(Color.RED);
+			updateButton.setTouchable(Touchable.enabled);
 		});
 	}
 
@@ -384,15 +504,17 @@ public class ScoreScreen extends StageGame {
 		backButton.addListener(new ClickListener() {
 			@Override
 			public void clicked(InputEvent event, float x, float y) {
+				TRONgame.playSoundSafe("new_click.ogg");
 				onClickBack();
-				TRONgame.media.playSound("new_click.ogg");
 			}
 		});
 	}
 
 	private void centerHorizontally(TextButton button) {
 		button.updateSize();
-		button.setX((getWidth() - button.getWidth()) / 2);
+		float centerX = (getWidth() - button.getWidth()) / 2;
+		button.setX(centerX);
+		Gdx.app.log("ScoreScreen", "Button centered at X: " + centerX + " (screen width: " + getWidth() + ", button width: " + button.getWidth() + ")");
 	}
 
 	private void onClickBack() {
@@ -429,19 +551,12 @@ public class ScoreScreen extends StageGame {
 		
 		Data data = TRONgame.data;
 		if (data != null) {
-			List<Data.LevelResult> levelResults = data.getAllLevelResults();
-			
-			if (levelResults.isEmpty()) {
-				return scores;
-			}
-			
-			levelResults.sort((o1, o2) -> Integer.compare(o1.levelId, o2.levelId));
-			
-			for (Data.LevelResult result : levelResults) {
-				// TIME: лучшее локально сохранённое время пользователя
-				float bestUserTime = getBestUserTimeForLevel(result.levelId, result.time);
-				// bestTime пока оставляем пустым, он заполнится из Supabase
-				scores.add(new ScoreEntry(result.levelId, bestUserTime, 0f));
+			// Создаем список всех 16 уровней
+			for (int levelId = 1; levelId <= 16; levelId++) {
+				float levelTime = data.getLevelTime(levelId);
+				// Если уровень не пройден, время будет 0
+				float bestUserTime = levelTime > 0 ? levelTime : 0f;
+				scores.add(new ScoreEntry(levelId, bestUserTime, 0f));
 			}
 		}
 		
@@ -449,6 +564,11 @@ public class ScoreScreen extends StageGame {
 	}
 
 	private String formatTime(float timeInSeconds) {
+		// Проверяем валидность времени
+		if (timeInSeconds <= 0) {
+			return "---";
+		}
+		
 		int minutes = (int) (timeInSeconds / 60);
 		int seconds = (int) (timeInSeconds % 60);
 		return String.format("%02d:%02d", minutes, seconds);
@@ -462,6 +582,10 @@ public class ScoreScreen extends StageGame {
 			if (t > 0f) return t;
 		}
 		return fallbackTime;
+	}
+
+	private String formatRank(int rank, int total) {
+		return rank + "/" + total;
 	}
 
 	private static class ScoreEntry {

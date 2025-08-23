@@ -1,19 +1,19 @@
 
 pack.png
-size: 2048,512
+size: 2048, 512
 format: RGBA8888
-filter: MipMapLinearNearest,Linear
+filter: MipMapLinearNearest, Linear
 repeat: none
 front_wheel
   rotate: false
-  xy: 1992, 467
+  xy: 1969, 206
   size: 44, 43
   orig: 44, 43
   offset: 0, 0
   index: -1
 rear_wheel
   rotate: false
-  xy: 1992, 467
+  xy: 1969, 206
   size: 44, 43
   orig: 44, 43
   offset: 0, 0
@@ -97,14 +97,14 @@ level_icon_bg_down
   index: -1
 level_icon_bg_lock
   rotate: false
-  xy: 1969, 366
+  xy: 1969, 303
   size: 60, 60
   orig: 60, 60
   offset: 0, 0
   index: -1
 level_icon_hilite
   rotate: false
-  xy: 1969, 325
+  xy: 1884, 181
   size: 39, 39
   orig: 39, 39
   offset: 0, 0
@@ -114,6 +114,27 @@ level_icon_lock
   xy: 1884, 222
   size: 20, 27
   orig: 20, 27
+  offset: 0, 0
+  index: -1
+pause
+  rotate: false
+  xy: 1969, 251
+  size: 50, 50
+  orig: 50, 50
+  offset: 0, 0
+  index: -1
+restart_btn
+  rotate: false
+  xy: 1992, 449
+  size: 50, 61
+  orig: 50, 61
+  offset: 0, 0
+  index: -1
+restart_btn_dwn
+  rotate: false
+  xy: 1969, 365
+  size: 50, 61
+  orig: 50, 61
   offset: 0, 0
   index: -1
 rover

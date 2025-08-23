@@ -5,6 +5,9 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Preferences;
 import java.util.ArrayList;
 import java.util.List;
+import ru.schneider_dev.tronfg.TRONgame;
+import ru.schneider_dev.tronfg.services.LeaderboardService;
+import ru.schneider_dev.tronfg.services.LeaderboardServiceFactory;
 
 public class Data {
 
@@ -16,6 +19,10 @@ public class Data {
     private static final String LEVEL_TIME_PREFIX = "level_time_";
     private static final String TOTAL_TIME_KEY = "total_time";
     private static final String USER_ID_KEY = "user_id";
+    
+    // Константы для настроек звука
+    private static final String SOUND_MUTED_KEY = "sound_muted";
+    private static final String MUSIC_MUTED_KEY = "music_muted";
 
     public Data() {
         // Используем LibGDX Preferences для Android, DataManager для других платформ
@@ -116,7 +123,7 @@ public class Data {
         // Текущее сохранённое (лучшее) время в сотых
         int prevInHundredths = manager.getInt(key, 0);
         
-        // Если уже есть время и новое не лучше - не сохраняем
+        // Если уже есть время и новое не лучше - не сохраняем и не отправляем
         if (prevInHundredths > 0 && time >= (prevInHundredths / 100f)) {
             return;
         }
@@ -125,8 +132,53 @@ public class Data {
         int timeInHundredths = Math.round(time * 100);
         manager.saveInt(key, timeInHundredths);
         
-        // Обновляем общее время
-        updateTotalTime();
+        // Автоматически отправляем лучший результат в Supabase
+        submitBestResultToLeaderboard(levelId, time);
+    }
+    
+    /**
+     * Автоматически отправляет лучший результат в лидерборд
+     * @param levelId ID уровня
+     * @param time время прохождения
+     */
+    private void submitBestResultToLeaderboard(int levelId, float time) {
+        try {
+            // Получаем userId из TRONgame
+            String userId = TRONgame.data.getUserId();
+            if (userId != null && !userId.isEmpty()) {
+                // Создаем сервис для отправки результата
+                LeaderboardService leaderboardService = LeaderboardServiceFactory.createLeaderboardService();
+                
+                // Отправляем результат асинхронно
+                leaderboardService.submitResult(userId, levelId, time, new LeaderboardService.LeaderboardCallback() {
+                    @Override
+                    public void onSuccess(int rank, int totalPlayers, float bestTime) {
+                        // Логируем успешную отправку
+                        System.out.println("✅ Level " + levelId + " result submitted automatically: " + 
+                                         formatTime(time) + " (Rank: " + rank + "/" + totalPlayers + ")");
+                    }
+                    
+                    @Override
+                    public void onError(String error) {
+                        // Логируем ошибку, но не блокируем игру
+                        System.err.println("❌ Failed to submit level " + levelId + " result: " + error);
+                    }
+                });
+            }
+        } catch (Exception e) {
+            // Игнорируем ошибки, чтобы не блокировать игру
+            System.err.println("Error submitting level " + levelId + " result: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Форматирует время для логирования
+     */
+    private String formatTime(float timeInSeconds) {
+        if (timeInSeconds <= 0) return "0:00";
+        int minutes = (int) (timeInSeconds / 60);
+        int seconds = (int) (timeInSeconds % 60);
+        return String.format("%d:%02d", minutes, seconds);
     }
 
     /**
@@ -156,22 +208,6 @@ public class Data {
         }
         
         return results;
-    }
-
-    /**
-     * Обновляет общее время прохождения всех уровней
-     */
-    private void updateTotalTime() {
-        float totalTime = 0;
-        List<LevelResult> results = getAllLevelResults();
-        
-        for (LevelResult result : results) {
-            totalTime += result.time;
-        }
-        
-        // Сохраняем общее время в сотых долях
-        int totalInHundredths = Math.round(totalTime * 100);
-        manager.saveInt(TOTAL_TIME_KEY, totalInHundredths);
     }
 
     /**
@@ -236,6 +272,59 @@ public class Data {
         }
         // Возвращаем хеш как строку, так как оригинальную строку восстановить нельзя
         return String.valueOf(hash);
+    }
+
+    /**
+     * Сохраняет настройку звука (включен/выключен)
+     * @param muted true - звук выключен, false - звук включен
+     */
+    public void saveSoundMuted(boolean muted) {
+        manager.saveInt(SOUND_MUTED_KEY, muted ? 1 : 0);
+    }
+
+    /**
+     * Загружает настройку звука
+     * @return true если звук выключен, false если включен
+     */
+    public boolean isSoundMuted() {
+        return manager.getInt(SOUND_MUTED_KEY, 0) == 1;
+    }
+
+    /**
+     * Сохраняет настройку музыки (включена/выключена)
+     * @param muted true - музыка выключена, false - музыка включена
+     */
+    public void saveMusicMuted(boolean muted) {
+        manager.saveInt(MUSIC_MUTED_KEY, muted ? 1 : 0);
+    }
+
+    /**
+     * Загружает настройку музыки
+     * @return true если музыка выключена, false если включена
+     */
+    public boolean isMusicMuted() {
+        return manager.getInt(MUSIC_MUTED_KEY, 0) == 1;
+    }
+
+    /**
+     * Сохраняет все настройки звука
+     * @param soundMuted настройка звука
+     * @param musicMuted настройка музыки
+     */
+    public void saveAudioSettings(boolean soundMuted, boolean musicMuted) {
+        saveSoundMuted(soundMuted);
+        saveMusicMuted(musicMuted);
+    }
+
+    /**
+     * Загружает все настройки звука
+     * @return массив [soundMuted, musicMuted]
+     */
+    public boolean[] getAudioSettings() {
+        return new boolean[]{
+            isSoundMuted(),
+            isMusicMuted()
+        };
     }
 
     /**

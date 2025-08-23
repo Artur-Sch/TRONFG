@@ -3,10 +3,15 @@ android {
     buildToolsVersion "35.0.0"
     compileSdkVersion 35
     
+    // Конфигурация оптимизации соответствует рекомендациям Google Play Console:
+    // - minifyEnabled = true для оптимизации кода
+    // - shrinkResources = true для оптимизации ресурсов
+
     buildFeatures {
         buildConfig true
+        prefab true
     }
-    
+
     sourceSets {
         main {
             manifest.srcFile 'AndroidManifest.xml'
@@ -21,9 +26,11 @@ android {
         androidTest.setRoot('tests')
     }
     packagingOptions {
-        exclude 'META-INF/robovm/ios/robovm.xml'
+        resources {
+            excludes += ['META-INF/robovm/ios/robovm.xml', 'META-INF/kotlinx_coroutines_core.version']
+        }
     }
-    
+
     repositories {
         google()
         mavenCentral()
@@ -32,10 +39,30 @@ android {
         applicationId "ru.schneider_dev.tronfg"
         minSdkVersion 21
         targetSdkVersion 35
-        versionCode 4
-        versionName "2.1"
+        versionCode 8
+        versionName "2.4"
         multiDexEnabled true
         
+        // Оптимизация для Android App Bundle - поддержка всех архитектур
+        ndk {
+            abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
+            // Настройки для отладочных символов
+            debugSymbolLevel 'FULL'
+        }
+
+        // Оптимизация для Bundle
+        bundle {
+            language {
+                enableSplit = true
+            }
+            density {
+                enableSplit = true
+            }
+            abi {
+                enableSplit = true
+            }
+        }
+
         // Читаем Supabase ключи из local.properties
         def localProperties = new Properties()
         def localPropertiesFile = rootProject.file("local.properties")
@@ -46,11 +73,8 @@ android {
         buildConfigField "String", "SUPABASE_URL", "\"${localProperties.getProperty('supabase.url', '')}\""
         buildConfigField "String", "SUPABASE_ANON_KEY", "\"${localProperties.getProperty('supabase.anon.key', '')}\""
     }
-    
-    packagingOptions {
-        exclude 'META-INF/kotlinx_coroutines_core.version'
-    }
-    
+
+
     signingConfigs {
         release {
             def keystorePropertiesFile = rootProject.file("android/keystore.properties")
@@ -67,25 +91,39 @@ android {
     
     buildTypes {
         release {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            // Оптимизация кода (R8/ProGuard) - уменьшает размер APK
+            minifyEnabled true
+
+            // Оптимизация ресурсов - удаляет неиспользуемые ресурсы
+            shrinkResources true
+
+            // Правила оптимизации и деобфускации
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+
+            // Подпись релизной версии
             signingConfig signingConfigs.release
+
+            // Отключение отладочного режима
             buildConfigField "boolean", "DEBUG", "false"
+
+            // Настройки для отладочных символов нативного кода
+            ndk {
+                debugSymbolLevel 'FULL'
+            }
         }
         debug {
             buildConfigField "boolean", "DEBUG", "true"
         }
     }
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_11
-        targetCompatibility JavaVersion.VERSION_11
+        sourceCompatibility JavaVersion.VERSION_21
+        targetCompatibility JavaVersion.VERSION_21
     }
 }
 // called every time gradle gets executed, takes the native dependencies of
 // the natives configuration, and extracts them to the proper libs/ folders
 // so they get packed with the APK.
 task copyAndroidNatives() {
-    file("libs/armeabi/").mkdirs();
     file("libs/armeabi-v7a/").mkdirs();
     file("libs/arm64-v8a/").mkdirs();
     file("libs/x86_64/").mkdirs();
@@ -95,7 +133,6 @@ task copyAndroidNatives() {
         def outputDir = null
         if (jar.name.endsWith("natives-arm64-v8a.jar")) outputDir = file("libs/arm64-v8a")
         if (jar.name.endsWith("natives-armeabi-v7a.jar")) outputDir = file("libs/armeabi-v7a")
-        if (jar.name.endsWith("natives-armeabi.jar")) outputDir = file("libs/armeabi")
         if (jar.name.endsWith("natives-x86_64.jar")) outputDir = file("libs/x86_64")
         if (jar.name.endsWith("natives-x86.jar")) outputDir = file("libs/x86")
         if (outputDir != null) {
@@ -127,6 +164,124 @@ task run(type: Exec) {
 
     def adb = path + "/platform-tools/adb"
     commandLine "$adb", 'shell', 'am', 'start', '-n', 'ru.schneider_dev.tronfg/ru.schneider_dev.tronfg.AndroidLauncher'
+}
+
+// Задача для копирования файла деобфускации
+task copyMappingFile(type: Copy) {
+    dependsOn 'minifyReleaseWithR8'
+    from "${buildDir}/outputs/mapping/release/mapping.txt"
+    into "${buildDir}/outputs/"
+    rename { String fileName ->
+        fileName.replace('mapping.txt', 'mapping-release.txt')
+    }
+}
+
+// Задача для создания Bundle с файлом деобфускации
+task bundleReleaseWithMapping(type: GradleBuild) {
+    tasks = ['clean', 'bundleRelease', 'copyMappingFile']
+}
+
+// Задача для создания файла с отладочными символами
+task createDebugSymbols(type: Copy) {
+    from "${buildDir}/intermediates/merged_native_libs/release/mergeReleaseNativeLibs/out/lib"
+    into "${buildDir}/outputs/debug-symbols/"
+    include "**/*.so"
+
+    doLast {
+        println "Debug symbols copied to: ${buildDir}/outputs/debug-symbols/"
+        // Проверяем, что файлы скопировались
+        def debugSymbolsDir = file("${buildDir}/outputs/debug-symbols/")
+        if (debugSymbolsDir.exists()) {
+            debugSymbolsDir.eachDirRecurse { dir ->
+                dir.eachFile { file ->
+                    if (file.name.endsWith('.so')) {
+                        println "  - ${file.path}"
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Задача для создания Bundle с отладочными символами
+task bundleReleaseWithDebugSymbols(type: GradleBuild) {
+    tasks = ['clean', 'bundleRelease', 'copyMappingFile', 'createDebugSymbols']
+}
+
+// Задача для создания архива с отладочными символами
+task createDebugSymbolsArchive(type: Zip) {
+    dependsOn 'createAllDebugSymbols', 'copyMappingFile'
+    from "${buildDir}/outputs/debug-symbols/"
+    archiveFileName = "debug-symbols-release.zip"
+    destinationDirectory = file("${buildDir}/outputs/")
+
+    doLast {
+        println "Debug symbols archive created: ${buildDir}/outputs/debug-symbols-release.zip"
+        // Проверяем содержимое архива
+        def archiveFile = file("${buildDir}/outputs/debug-symbols-release.zip")
+        if (archiveFile.exists()) {
+            println "Archive size: ${archiveFile.length()} bytes"
+        }
+    }
+}
+
+// Задача для создания отладочных символов для всех ABI
+task createAllDebugSymbols(type: Copy) {
+    dependsOn 'mergeReleaseNativeLibs'
+    from "${buildDir}/intermediates/merged_native_libs/release/mergeReleaseNativeLibs/out/lib"
+    into "${buildDir}/outputs/debug-symbols/"
+    include "**/*.so"
+
+    doLast {
+        println "All ABI debug symbols copied to: ${buildDir}/outputs/debug-symbols/"
+        // Создаем структуру папок по ABI
+        def abiDirs = ['arm64-v8a', 'armeabi-v7a', 'x86', 'x86_64']
+        abiDirs.each { abi ->
+            def abiDir = file("${buildDir}/outputs/debug-symbols/${abi}")
+            if (abiDir.exists()) {
+                println "  ${abi}: ${abiDir.listFiles()?.length ?: 0} files"
+            }
+        }
+    }
+}
+
+// Задача для проверки созданных файлов
+task verifyReleaseFiles {
+    doLast {
+        println "=== Проверка созданных файлов ==="
+
+        def outputsDir = file("${buildDir}/outputs/")
+        if (outputsDir.exists()) {
+            outputsDir.eachFile { file ->
+                if (file.name.endsWith('.aab') || file.name.endsWith('.zip') || file.name.endsWith('.txt')) {
+                    println "✅ ${file.name} (${file.length()} bytes)"
+                }
+            }
+        }
+
+        def debugSymbolsDir = file("${buildDir}/outputs/debug-symbols/")
+        if (debugSymbolsDir.exists()) {
+            println "📁 Debug symbols directory: ${debugSymbolsDir.absolutePath}"
+            debugSymbolsDir.eachDirRecurse { dir ->
+                dir.eachFile { file ->
+                    if (file.name.endsWith('.so')) {
+                        println "  📄 ${file.name} (${file.length()} bytes)"
+                    }
+                }
+            }
+        }
+
+        println "=== Проверка завершена ==="
+    }
+}
+
+// Полная задача для создания всего необходимого
+task createReleasePackage(type: GradleBuild) {
+    tasks = ['clean', 'bundleRelease', 'copyMappingFile', 'createAllDebugSymbols', 'createDebugSymbolsArchive', 'verifyReleaseFiles']
+}
+
+dependencies {
+    implementation project(':core')
 }
 
 

@@ -105,6 +105,7 @@ public class LevelList  extends StageGame {
         rateBtn.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
+                TRONgame.playSoundSafe("new_click.ogg");
                 call(ON_OPEN_MARKET);
             }
         });
@@ -117,6 +118,7 @@ public class LevelList  extends StageGame {
         shareBtn.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
+                TRONgame.playSoundSafe(CLICK_SOUND);
                 call(ON_SHARE);
             }
         });
@@ -150,7 +152,7 @@ public class LevelList  extends StageGame {
         @Override
         public void clicked(InputEvent event, float x, float y) {
             selectedLevelId = ((LevelIcon)event.getTarget()).getId();
-            TRONgame.media.playSound("new_click.ogg");
+            TRONgame.playSoundSafe("new_click.ogg");
             call(ON_LEVEL_SELECTED);
         }
     };
@@ -158,7 +160,7 @@ public class LevelList  extends StageGame {
     @Override
     public boolean keyUp(int keycode) {
         if (keycode == Input.Keys.ESCAPE || keycode == Input.Keys.BACK) {
-            TRONgame.media.playSound("new_click.ogg");
+            TRONgame.playSoundSafe("new_click.ogg");
             call(ON_BACK);
             return true;
         }
@@ -195,7 +197,7 @@ public class LevelList  extends StageGame {
             @Override
             public void clicked(InputEvent event, float x, float y) {
                 onClickScore();
-                TRONgame.media.playSound(CLICK_SOUND);
+                TRONgame.playSoundSafe(CLICK_SOUND);
             }
         });
     }
