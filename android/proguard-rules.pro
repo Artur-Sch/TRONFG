@@ -60,6 +60,31 @@
 -keep class com.badlogic.gdx.** { *; }
 -keep class com.boontaran.** { *; }
 
+# Дополнительная защита для методов физики и ограничения скорости
+-keepclassmembers class ru.schneider_dev.tronfg.levels.Level {
+    private void checkAndLimitPlayerSpeed();
+    private void updateJumpCooldowns(float);
+    private void resetJumpCooldowns();
+    private void updateWorld(float);
+}
+
+-keepclassmembers class ru.schneider_dev.tronfg.player.Player {
+    private void limitRoverSpeed();
+    public void jumpBack(float);
+    public void jumpForward(float);
+    public void onKey(boolean, boolean);
+}
+
+# Сохранение констант физики
+-keepclassmembers class ru.schneider_dev.tronfg.levels.Level {
+    public static final float WORLD_SCALE;
+}
+
+-keepclassmembers class ru.schneider_dev.tronfg.Setting {
+    public static final float GRAVITY;
+    public static final float WHEEL_TORQUE;
+}
+
 # Сохранение нативных методов
 -keepclasseswithmembernames class * {
     native <methods>;
@@ -73,3 +98,37 @@
 
 # Игнорирование отсутствующих классов
 -ignorewarnings
+
+# Оптимизации для поддержки страниц памяти 16 КБ
+# Оптимизация размера страниц памяти
+-optimizations !code/simplification/arithmetic,!code/simplification/cast,!field/*,!class/merging/*
+-optimizationpasses 5
+-allowaccessmodification
+
+# Оптимизация памяти для игровых объектов
+-keepclassmembers class ru.schneider_dev.tronfg.** {
+    private static final int MEMORY_PAGE_SIZE;
+    private static final boolean MEMORY_OPTIMIZATION;
+}
+
+# Оптимизация нативных библиотек
+-keep class **.NativeLib { *; }
+-keepclassmembers class **.NativeLib {
+    native <methods>;
+}
+
+# Оптимизация для эффективного использования памяти
+-dontusemixedcaseclassnames
+-dontskipnonpubliclibraryclasses
+-verbose
+
+# Оптимизация строк для экономии памяти
+-optimizations !code/simplification/arithmetic,!field/*,!class/merging/*
+-optimizationpasses 5
+
+# Сохранение важных методов для оптимизации памяти
+-keepclassmembers class ru.schneider_dev.tronfg.** {
+    public void optimizeMemory();
+    public void setMemoryPageSize(int);
+    public int getMemoryPageSize();
+}

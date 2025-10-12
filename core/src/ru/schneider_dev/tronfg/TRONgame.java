@@ -26,13 +26,13 @@ import com.badlogic.gdx.utils.I18NBundle;
 import com.boontaran.games.StageGame;
 import ru.schneider_dev.tronfg.levels.Level;
 import ru.schneider_dev.tronfg.media.Media;
+import ru.schneider_dev.tronfg.screens.GameCompletedScreen;
 import ru.schneider_dev.tronfg.screens.IntroScreen;
 import ru.schneider_dev.tronfg.screens.LevelList;
-import ru.schneider_dev.tronfg.screens.GameCompletedScreen;
 import ru.schneider_dev.tronfg.screens.ScoreScreen;
 import ru.schneider_dev.tronfg.utils.Data;
+import ru.schneider_dev.tronfg.utils.MemoryOptimizer;
 import ru.schneider_dev.tronfg.utils.ScreenScaler;
-
 
 import java.util.Locale;
 import java.util.Random;
@@ -194,6 +194,9 @@ public class TRONgame extends Game {
         media = new Media(assetManager);
         data = new Data();
 
+        // Инициализация оптимизатора памяти для поддержки страниц 16 КБ
+        MemoryOptimizer.getInstance();
+
     }
 
     @Override
@@ -210,6 +213,11 @@ public class TRONgame extends Game {
 
     @Override
     public void dispose() {
+        // Освобождаем ресурсы оптимизатора памяти
+        if (MemoryOptimizer.getInstance() != null) {
+            MemoryOptimizer.getInstance().dispose();
+        }
+        
         assetManager.dispose();
         super.dispose();
     }

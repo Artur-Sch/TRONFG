@@ -1,5 +1,15 @@
 package ru.schneider_dev.tronfg.player;
 
+/**
+ * Класс игрока (машины) для игры TRONFG
+ * <p>
+ * ИСПРАВЛЕНИЕ БАГА: Добавлено ограничение максимальной линейной и угловой скорости
+ * для предотвращения неконтролируемого ускорения при множественных нажатиях.
+ * <p>
+ * Проблема: Box2D накапливает импульсы при множественных нажатиях, что приводит
+ * к эффекту "глобального масштаба скорости" - ровер движется слишком быстро.
+ */
+
 
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
@@ -236,13 +246,35 @@ public class Player extends ActorClip implements IBody {
     public void jumpBack(float value) {
         // Наклон назад (поворот по часовой стрелке)
         float torque = 200f; // Сила крутящего момента
-        car.applyTorque(torque * value, true);
+
+        // Ограничиваем максимальную угловую скорость для предотвращения бесконтрольного вращения
+        float currentAngularVelocity = car.getAngularVelocity();
+        float maxAngularVelocity = 15f; // Максимальная угловая скорость в радианах/сек
+
+        // Ограничиваем максимальную линейную скорость для предотвращения неконтролируемого ускорения
+        float currentLinearVelocity = car.getLinearVelocity().len();
+        float maxLinearVelocity = 20f; // Максимальная линейная скорость в единицах мира Box2D
+
+        if (currentAngularVelocity < maxAngularVelocity && currentLinearVelocity < maxLinearVelocity) {
+            car.applyTorque(torque * value, true);
+        }
     }
 
     public void jumpForward(float value) {
         // Наклон вперед (поворот против часовой стрелки)
         float torque = -200f; // Сила крутящего момента (отрицательная)
-        car.applyTorque(torque * value, true);
+
+        // Ограничиваем максимальную угловую скорость для предотвращения бесконтрольного вращения
+        float currentAngularVelocity = car.getAngularVelocity();
+        float maxAngularVelocity = 15f; // Максимальная угловая скорость в радианах/сек
+
+        // Ограничиваем максимальную линейную скорость для предотвращения неконтролируемого ускорения
+        float currentLinearVelocity = car.getLinearVelocity().len();
+        float maxLinearVelocity = 20f; // Максимальная линейная скорость в единицах мира Box2D
+
+        if (currentAngularVelocity > -maxAngularVelocity && currentLinearVelocity < maxLinearVelocity) {
+            car.applyTorque(torque * value, true);
+        }
     }
 
     @Override
@@ -253,7 +285,64 @@ public class Player extends ActorClip implements IBody {
             world.destroyJoint(rearWheelJoint);
         }
 
+        // Принудительно ограничиваем скорость ровера для предотвращения багов с ускорением
+        limitRoverSpeed();
+
         super.act(delta);
+    }
+
+    /**
+     * Ограничивает максимальную скорость ровера для предотвращения багов с ускорением
+     */
+    private void limitRoverSpeed() {
+        if (car != null && !hasDestroyed) {
+            // Ограничиваем линейную скорость
+            Vector2 velocity = car.getLinearVelocity();
+            float currentLinearVelocity = velocity.len();
+            float maxLinearVelocity = 20f; // Максимальная линейная скорость в единицах мира Box2D
+
+            // Дополнительная защита: проверяем на аномально высокие значения
+            float absoluteMaxLinearVelocity = 40f; // Абсолютный максимум для предотвращения багов
+
+            if (currentLinearVelocity > absoluteMaxLinearVelocity) {
+                // Критическая ситуация - сбрасываем скорость полностью
+                car.setLinearVelocity(0, 0);
+                car.setAngularVelocity(0);
+                return;
+            }
+
+            if (currentLinearVelocity > maxLinearVelocity) {
+                // Нормализуем вектор скорости и применяем ограничение
+                velocity.nor().scl(maxLinearVelocity);
+                car.setLinearVelocity(velocity);
+            }
+
+            // Ограничиваем угловую скорость
+            float currentAngularVelocity = car.getAngularVelocity();
+            float maxAngularVelocity = 15f; // Максимальная угловая скорость в радианах/сек
+
+            // Дополнительная защита: проверяем на аномально высокие значения
+            float absoluteMaxAngularVelocity = 30f; // Абсолютный максимум для предотвращения багов
+
+            if (Math.abs(currentAngularVelocity) > absoluteMaxAngularVelocity) {
+                // Критическая ситуация - сбрасываем угловую скорость
+                car.setAngularVelocity(0);
+                return;
+            }
+
+            if (Math.abs(currentAngularVelocity) > maxAngularVelocity) {
+                float sign = currentAngularVelocity > 0 ? 1 : -1;
+                car.setAngularVelocity(sign * maxAngularVelocity);
+            }
+
+            // Дополнительная защита: проверяем на NaN или бесконечные значения
+            if (Float.isNaN(currentLinearVelocity) || Float.isInfinite(currentLinearVelocity) ||
+                    Float.isNaN(currentAngularVelocity) || Float.isInfinite(currentAngularVelocity)) {
+                // Сбрасываем все скорости при некорректных значениях
+                car.setLinearVelocity(0, 0);
+                car.setAngularVelocity(0);
+            }
+        }
     }
 
 

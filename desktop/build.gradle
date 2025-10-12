@@ -9,12 +9,27 @@ sourceSets.main.java.srcDirs = [ "src/" ]
 project.ext.mainClassName = "ru.schneider_dev.tronfg.desktop.DesktopLauncher"
 project.ext.assetsDir = new File("../android/assets");
 
+// Добавляем зависимости для LWJGL3
+dependencies {
+    implementation project(":core")
+    implementation "com.badlogicgames.gdx:gdx-backend-lwjgl3:$gdxVersion"
+    implementation "com.badlogicgames.gdx:gdx-tools:$gdxVersion"
+    implementation "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-desktop"
+    implementation "com.badlogicgames.gdx:gdx-box2d-platform:$gdxVersion:natives-desktop"
+    implementation "com.badlogicgames.gdx:gdx-freetype-platform:$gdxVersion:natives-desktop"
+}
+
 task run(dependsOn: classes, type: JavaExec) {
     mainClass = project.mainClassName
     classpath = sourceSets.main.runtimeClasspath
     standardInput = System.in
     workingDir = project.assetsDir
     ignoreExitValue = true
+    
+    // Добавляем JVM флаги для macOS
+    if (System.getProperty("os.name").toLowerCase().contains("mac")) {
+        jvmArgs "-XstartOnFirstThread"
+    }
 }
 
 task debug(dependsOn: classes, type: JavaExec) {
@@ -24,12 +39,18 @@ task debug(dependsOn: classes, type: JavaExec) {
     workingDir = project.assetsDir
     ignoreExitValue = true
     debug = true
+    
+    // Добавляем JVM флаги для macOS
+    if (System.getProperty("os.name").toLowerCase().contains("mac")) {
+        jvmArgs "-XstartOnFirstThread"
+    }
 }
 
 task dist(type: Jar) {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     from files(sourceSets.main.output.classesDirs)
     from files(sourceSets.main.output.resourcesDir)
-    from {configurations.implementation.collect {zipTree(it)}}
+    from {configurations.runtimeClasspath.collect {zipTree(it)}}
     from files(project.assetsDir);
  
     manifest {

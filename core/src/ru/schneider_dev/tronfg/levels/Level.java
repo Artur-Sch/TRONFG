@@ -1,6 +1,31 @@
 package ru.schneider_dev.tronfg.levels;
 
+/**
+ * Класс уровня игры TRONFG
+ * <p>
+ * ИСПРАВЛЕНИЕ БАГА: Добавлена защита от множественных нажатий на кнопки прыжка
+ * для предотвращения неконтролируемого ускорения ровера.
+ * <p>
+ * Проблема: При быстрых повторных нажатиях на jumpBackBtn/jumpForwardBtn
+ * в физическом движке Box2D накапливались импульсы, что приводило к очень быстрому
+ * вращению и движению ровера (эффект "глобального масштаба скорости").
+ * <p>
+ * ПРОБЛЕМА В RELEASE ВЕРСИИ: R8/ProGuard оптимизации могут влиять на физику,
+ * поэтому добавлена многоуровневая защита и мониторинг.
+ * <p>
+ * Решение:
+ * 1. Добавлен кулдаун 100ms между нажатиями
+ * 2. Добавлена проверка состояния нажатия кнопки
+ * 3. Добавлено ограничение максимальной линейной и угловой скорости в классе Player
+ * 4. Добавлена дополнительная защита на уровне Level с принудительным ограничением скорости
+ * 5. Добавлен мониторинг физики для отладки в release версии
+ * 6. Добавлена защита от NaN/бесконечных значений
+ * 7. Кулдауны сбрасываются при рестарте и возобновлении уровня
+ * 8. ProGuard правила защищают критические методы физики
+ */
 
+
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.graphics.Texture.TextureFilter;
 import com.badlogic.gdx.maps.MapLayer;
@@ -37,7 +62,6 @@ import ru.schneider_dev.tronfg.player.UserData;
 import ru.schneider_dev.tronfg.screens.LevelCompletedScreen;
 import ru.schneider_dev.tronfg.screens.LevelFailedScreen;
 import ru.schneider_dev.tronfg.screens.PausedScreen;
-import com.badlogic.gdx.Gdx;
 
 import static ru.schneider_dev.tronfg.TRONgame.GAME_MUSIC;
 
@@ -67,6 +91,10 @@ public class Level extends StageGame {
     private Body finish;
 
     private boolean moveFrontKey, moveBackKey;
+    private boolean keyboardLeftPressed = false;
+    private boolean keyboardRightPressed = false;
+    private boolean keyboardTiltLeftPressed = false;
+    private boolean keyboardTiltRightPressed = false;
     private Label pleaseWait;
 
     private JoyStick joyStick;
@@ -109,6 +137,19 @@ public class Level extends StageGame {
 
     // Коэффициент масштабирования камеры (больше значение = больше отдаление)
     private static final float CAMERA_ZOOM_FACTOR = 1.0f; // 1.0 = нормальный масштаб, 1.3 = отдаление на 30%
+
+    // Переменные для защиты от множественных нажатий
+    private boolean jumpBackPressed = false;
+    private boolean jumpForwardPressed = false;
+    private static final float JUMP_COOLDOWN = 0.1f; // 100ms задержка между нажатиями
+    private float jumpBackCooldown = 0f;
+    private float jumpForwardCooldown = 0f;
+
+    // Переменные для мониторинга физики в release версии
+    private int physicsBugCounter = 0;
+    private static final int MAX_PHYSICS_BUGS = 10;
+    private long lastPhysicsCheck = 0;
+    private static final long PHYSICS_CHECK_INTERVAL = 1000; // Проверка каждую секунду
 
     public Level(String directory) {
         this.directory = directory;
@@ -207,22 +248,38 @@ public class Level extends StageGame {
         jumpBackBtn.addListener(new ClickListener() {
             @Override
             public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
-                if (state == PLAY) {
-                    player.jumpBack(3.0f);
+                if (state == PLAY && !jumpBackPressed && jumpBackCooldown <= 0f) {
+                    jumpBackPressed = true;
+                    jumpBackCooldown = JUMP_COOLDOWN;
+                    player.jumpBack(2.5f);
                     return true;
                 }
                 return super.touchDown(event, x, y, pointer, button);
+            }
+
+            @Override
+            public void touchUp(InputEvent event, float x, float y, int pointer, int button) {
+                jumpBackPressed = false;
+                super.touchUp(event, x, y, pointer, button);
             }
         });
 
         jumpForwardBtn.addListener(new ClickListener() {
             @Override
             public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
-                if (state == PLAY) {
-                    player.jumpForward(3.0f);
+                if (state == PLAY && !jumpForwardPressed && jumpForwardCooldown <= 0f) {
+                    jumpForwardPressed = true;
+                    jumpForwardCooldown = JUMP_COOLDOWN;
+                    player.jumpForward(2.5f);
                     return true;
                 }
                 return super.touchDown(event, x, y, pointer, button);
+            }
+
+            @Override
+            public void touchUp(InputEvent event, float x, float y, int pointer, int button) {
+                jumpForwardPressed = false;
+                super.touchUp(event, x, y, pointer, button);
             }
         });
 
@@ -367,6 +424,9 @@ public class Level extends StageGame {
         // Возобновляем таймер уровня
         levelTimerRunning = true;
 
+        // Сбрасываем кулдауны кнопок прыжка при возобновлении
+        resetJumpCooldowns();
+
         // Синхронизируем с новой музыкой, выбранной в паузе
         syncMusicWithPauseScreen();
 
@@ -433,6 +493,15 @@ public class Level extends StageGame {
             TRONgame.media.stopMusic(musicName);
         }
 
+        // Сбрасываем кулдауны кнопок прыжка
+        resetJumpCooldowns();
+
+        // Сбрасываем состояние клавиш при рестарте
+        keyboardLeftPressed = false;
+        keyboardRightPressed = false;
+        keyboardTiltLeftPressed = false;
+        keyboardTiltRightPressed = false;
+
         // Вызываем событие перезапуска
         call(ON_RESTART);
     }
@@ -448,12 +517,26 @@ public class Level extends StageGame {
 
     @Override
     public void dispose() {
-        if (musicName != null && musicHasLoaded) {
-            TRONgame.media.stopMusic(musicName);
-            TRONgame.media.removeMusic(musicName);
+        try {
+            if (musicName != null && musicHasLoaded) {
+                TRONgame.media.stopMusic(musicName);
+                TRONgame.media.removeMusic(musicName);
+            }
+        } catch (Exception e) {
+            Gdx.app.log("Level", "Error stopping music: " + e.getMessage());
         }
-        if (world != null) world.dispose();
-        map.dispose();
+
+        try {
+            if (world != null) world.dispose();
+        } catch (Exception e) {
+            Gdx.app.log("Level", "Error disposing world: " + e.getMessage());
+        }
+
+        try {
+            if (map != null) map.dispose();
+        } catch (Exception e) {
+            Gdx.app.log("Level", "Error disposing map: " + e.getMessage());
+        }
 
         super.dispose();
     }
@@ -1082,6 +1165,12 @@ public class Level extends StageGame {
         if (state != PLAY) return;
         state = PAUSED;
 
+        // Сбрасываем состояние клавиш при паузе
+        keyboardLeftPressed = false;
+        keyboardRightPressed = false;
+        keyboardTiltLeftPressed = false;
+        keyboardTiltRightPressed = false;
+
         if (withDialog) {
             addOverlayChild(pausedScreen);
             pausedScreen.start();
@@ -1111,7 +1200,10 @@ public class Level extends StageGame {
 
     private void updateWorld(float delta) {
         if (player.getRight() < levelWidth - 100) {
-            world.step(delta, 10, 10);
+            // Дополнительная защита: ограничиваем delta для предотвращения больших скачков
+            float safeDelta = Math.min(delta, 0.05f); // Максимум 50ms за шаг
+
+            world.step(safeDelta, 10, 10);
         }
 
         int i;
@@ -1126,8 +1218,27 @@ public class Level extends StageGame {
                 Actor actor = data.actor;
 
                 if (actor != null) {
-                    actor.setPosition(body.getPosition().x * WORLD_SCALE, body.getPosition().y * WORLD_SCALE);
-                    actor.setRotation(body.getAngle() * 180 / 3.14f);
+                    // Дополнительная защита: проверяем корректность позиции
+                    Vector2 position = body.getPosition();
+                    float angle = body.getAngle();
+
+                    // Проверяем на NaN или бесконечные значения
+                    if (Float.isNaN(position.x) || Float.isInfinite(position.x) ||
+                            Float.isNaN(position.y) || Float.isInfinite(position.y) ||
+                            Float.isNaN(angle) || Float.isInfinite(angle)) {
+
+                        Gdx.app.log("Level", "🚨 INVALID PHYSICS VALUES DETECTED - RESETTING BODY!");
+
+                        // Сбрасываем некорректные значения
+                        if (Float.isNaN(position.x) || Float.isInfinite(position.x)) position.x = 0;
+                        if (Float.isNaN(position.y) || Float.isInfinite(position.y)) position.y = 0;
+                        if (Float.isNaN(angle) || Float.isInfinite(angle)) angle = 0;
+
+                        body.setTransform(position, angle);
+                    }
+
+                    actor.setPosition(position.x * WORLD_SCALE, position.y * WORLD_SCALE);
+                    actor.setRotation(angle * 180 / 3.14f);
                 }
             }
         }
@@ -1164,18 +1275,33 @@ public class Level extends StageGame {
             return;
         }
 
-        boolean lFront = joyStick.isRight();
-        boolean lBack = joyStick.isLeft();
+        boolean lFront = joyStick.isRight() || keyboardRightPressed;
+        boolean lBack = joyStick.isLeft() || keyboardLeftPressed;
 
         if (state == PLAY) {
 
             player.onKey(lFront, lBack);
+
+            // Обработка наклонов с клавиатуры (работают при удержании клавиши)
+            if (keyboardTiltLeftPressed) {
+                player.jumpBack(1.0f); // Уменьшаем силу для плавности при удержании
+            }
+
+            if (keyboardTiltRightPressed) {
+                player.jumpForward(1.0f); // Уменьшаем силу для плавности при удержании
+            }
 
             // Обновляем таймер переворота
             updateUpsideDownTimer(delta);
 
             // Обновляем таймер уровня
             updateLevelTimer(delta);
+
+            // Обновляем кулдауны кнопок прыжка
+            updateJumpCooldowns(delta);
+
+            // Дополнительная защита от багов с ускорением - проверяем скорость ровера
+            checkAndLimitPlayerSpeed();
 
             updateCamera();
 
@@ -1215,7 +1341,45 @@ public class Level extends StageGame {
     }
 
     @Override
+    public boolean keyDown(int keycode) {
+        if (state == PLAY) {
+            switch (keycode) {
+                case Input.Keys.A:
+                    keyboardLeftPressed = true;
+                    return true;
+                case Input.Keys.D:
+                    keyboardRightPressed = true;
+                    return true;
+                case Input.Keys.LEFT:
+                    keyboardTiltLeftPressed = true;
+                    return true;
+                case Input.Keys.RIGHT:
+                    keyboardTiltRightPressed = true;
+                    return true;
+            }
+        }
+        return super.keyDown(keycode);
+    }
+
+    @Override
     public boolean keyUp(int keycode) {
+        if (state == PLAY) {
+            switch (keycode) {
+                case Input.Keys.A:
+                    keyboardLeftPressed = false;
+                    return true;
+                case Input.Keys.D:
+                    keyboardRightPressed = false;
+                    return true;
+                case Input.Keys.LEFT:
+                    keyboardTiltLeftPressed = false;
+                    return true;
+                case Input.Keys.RIGHT:
+                    keyboardTiltRightPressed = false;
+                    return true;
+            }
+        }
+        
         if (keycode == Input.Keys.ESCAPE || keycode == Input.Keys.BACK) {
             if (state == PAUSED) {
                 // Если игра в паузе, кнопка "Назад" возвращает к игре
@@ -1253,6 +1417,135 @@ public class Level extends StageGame {
         // Обновляем позицию кнопки рестарта ниже кнопки паузы
         if (restartBtn != null) {
             restartBtn.setPosition(20, getHeight() - 140);
+        }
+    }
+
+    /**
+     * Обновляет кулдауны кнопок прыжка
+     */
+    private void updateJumpCooldowns(float delta) {
+        if (jumpBackCooldown > 0f) {
+            jumpBackCooldown -= delta;
+        }
+        if (jumpForwardCooldown > 0f) {
+            jumpForwardCooldown -= delta;
+        }
+    }
+
+    /**
+     * Сбрасывает кулдауны кнопок прыжка
+     */
+    private void resetJumpCooldowns() {
+        jumpBackCooldown = 0f;
+        jumpForwardCooldown = 0f;
+        jumpBackPressed = false;
+        jumpForwardPressed = false;
+    }
+
+    /**
+     * Проверяет и ограничивает скорость игрока для предотвращения багов с ускорением
+     */
+    private void checkAndLimitPlayerSpeed() {
+        if (player != null && player.car != null) {
+            // Получаем текущую скорость игрока
+            Vector2 velocity = player.car.getLinearVelocity();
+            float currentSpeed = velocity.len();
+
+            // Максимальная допустимая скорость (в единицах мира Box2D)
+            float maxSpeed = 25f; // Немного больше чем в Player для безопасности
+
+            // Дополнительная защита: проверяем на аномально высокие значения
+            float absoluteMaxSpeed = 50f; // Абсолютный максимум для предотвращения багов
+
+            if (currentSpeed > absoluteMaxSpeed) {
+                // Критическая ситуация - сбрасываем скорость полностью
+                Gdx.app.log("Level", "🚨 CRITICAL SPEED BUG DETECTED: " + currentSpeed + " - RESETTING SPEED!");
+                player.car.setLinearVelocity(0, 0);
+                player.car.setAngularVelocity(0);
+
+                // Увеличиваем счетчик багов
+                physicsBugCounter++;
+                return;
+            }
+
+            if (currentSpeed > maxSpeed) {
+                // Логируем для отладки
+                Gdx.app.log("Level", "⚠️ SPEED LIMIT EXCEEDED: " + currentSpeed + " > " + maxSpeed + " - APPLYING LIMIT");
+
+                // Нормализуем вектор скорости и применяем ограничение
+                velocity.nor().scl(maxSpeed);
+                player.car.setLinearVelocity(velocity);
+
+                // Также ограничиваем угловую скорость
+                float angularVelocity = player.car.getAngularVelocity();
+                float maxAngularVelocity = 20f;
+                if (Math.abs(angularVelocity) > maxAngularVelocity) {
+                    float sign = angularVelocity > 0 ? 1 : -1;
+                    player.car.setAngularVelocity(sign * maxAngularVelocity);
+                }
+
+                // Увеличиваем счетчик багов
+                physicsBugCounter++;
+            }
+
+            // Дополнительная защита: проверяем на NaN или бесконечные значения
+            if (Float.isNaN(currentSpeed) || Float.isInfinite(currentSpeed)) {
+                Gdx.app.log("Level", "🚨 INVALID SPEED VALUES DETECTED: " + currentSpeed + " - RESETTING!");
+                player.car.setLinearVelocity(0, 0);
+                player.car.setAngularVelocity(0);
+
+                // Увеличиваем счетчик багов
+                physicsBugCounter++;
+            }
+
+            // Мониторинг физики в release версии
+            monitorPhysicsBugs();
+        }
+    }
+
+    /**
+     * Мониторит количество багов физики и логирует информацию для отладки
+     */
+    private void monitorPhysicsBugs() {
+        long currentTime = System.currentTimeMillis();
+
+        if (currentTime - lastPhysicsCheck > PHYSICS_CHECK_INTERVAL) {
+            if (physicsBugCounter > 0) {
+                Gdx.app.log("Level", "📊 PHYSICS BUGS IN LAST SECOND: " + physicsBugCounter + "/" + MAX_PHYSICS_BUGS);
+
+                // Если багов слишком много, сбрасываем физику
+                if (physicsBugCounter > MAX_PHYSICS_BUGS) {
+                    Gdx.app.log("Level", "🚨 TOO MANY PHYSICS BUGS - RESETTING PHYSICS WORLD!");
+                    resetPhysicsWorld();
+                }
+            }
+
+            // Сбрасываем счетчик и время
+            physicsBugCounter = 0;
+            lastPhysicsCheck = currentTime;
+        }
+    }
+
+    /**
+     * Сбрасывает физический мир при критических проблемах
+     */
+    private void resetPhysicsWorld() {
+        if (player != null && player.car != null) {
+            // Сбрасываем все скорости
+            player.car.setLinearVelocity(0, 0);
+            player.car.setAngularVelocity(0);
+
+            // Сбрасываем скорости колес
+            if (player.frontWheel != null) {
+                player.frontWheel.setLinearVelocity(0, 0);
+                player.frontWheel.setAngularVelocity(0);
+            }
+            if (player.rearWheel != null) {
+                player.rearWheel.setLinearVelocity(0, 0);
+                player.rearWheel.setAngularVelocity(0);
+            }
+
+            Gdx.app.log("Level", "✅ PHYSICS WORLD RESET COMPLETED");
         }
     }
 

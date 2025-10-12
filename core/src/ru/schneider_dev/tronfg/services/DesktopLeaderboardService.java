@@ -1,359 +1,367 @@
 package ru.schneider_dev.tronfg.services;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Net;
+import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.Json;
 import com.badlogic.gdx.utils.JsonWriter;
 
 import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
 public class DesktopLeaderboardService implements LeaderboardService {
-    
+    private static final String TAG = "DesktopLeaderboardService";
+     
     private final Json json;
-    private static final String API_URL = "https://your-supabase-url.supabase.co/rest/v1";
-    private static final String SUPABASE_ANON_KEY = "your-supabase-anon-key"; // Нужно будет заменить на реальный ключ
+    private String supabaseUrl;
+    private String supabaseAnonKey;
+    private String apiUrl;
     
     public DesktopLeaderboardService() {
         json = new Json();
         json.setOutputType(JsonWriter.OutputType.json);
+        loadSupabaseConfig();
+    }
+    
+    private void loadSupabaseConfig() {
+        try {
+            // Пытаемся загрузить из local.properties
+            FileHandle localProps = Gdx.files.external("local.properties");
+            if (!localProps.exists()) {
+                // Если файл не найден, пробуем загрузить из корня проекта
+                localProps = Gdx.files.local("local.properties");
+            }
+            
+            if (localProps.exists()) {
+                BufferedReader reader = new BufferedReader(localProps.reader());
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (line.startsWith("supabase.url=")) {
+                        supabaseUrl = line.substring("supabase.url=".length()).trim();
+                    } else if (line.startsWith("supabase.anon.key=")) {
+                        supabaseAnonKey = line.substring("supabase.anon.key=".length()).trim();
+                    }
+                }
+                reader.close();
+                
+                if (supabaseUrl != null && supabaseAnonKey != null) {
+                    apiUrl = supabaseUrl + "/rest/v1";
+                    Gdx.app.log(TAG, "Supabase config loaded successfully");
+                    Gdx.app.log(TAG, "URL: " + supabaseUrl);
+                    Gdx.app.log(TAG, "Key: " + supabaseAnonKey.substring(0, Math.min(20, supabaseAnonKey.length())) + "...");
+                } else {
+                    Gdx.app.error(TAG, "Failed to load Supabase config from local.properties");
+                    setDefaultConfig();
+                }
+            } else {
+                Gdx.app.error(TAG, "local.properties not found, using default config");
+                setDefaultConfig();
+            }
+        } catch (IOException e) {
+            Gdx.app.error(TAG, "Error reading local.properties", e);
+            setDefaultConfig();
+        }
+    }
+    
+    private void setDefaultConfig() {
+        // Используем значения по умолчанию из local.properties
+        supabaseUrl = "https://zsbyhtziksjucudcpfma.supabase.co";
+        supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpzYnlodHppa3NqdWN1ZGNwZm1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1MjM4NzEsImV4cCI6MjA3MTA5OTg3MX0.LnBQFaRQn7LuQzZXff1s4Y4mxK6LHVE-3sicjutKX8s";
+        apiUrl = supabaseUrl + "/rest/v1";
+        Gdx.app.log(TAG, "Using default Supabase config");
     }
     
     @Override
     public void submitResult(String userId, int level, float time, LeaderboardCallback callback) {
-        Gdx.app.log("DesktopLeaderboardService", "Submit result: " + userId + ", level: " + level + ", time: " + time);
+        String url = apiUrl + "/rpc/submit_result";
+        String requestBody = json.toJson(new SubmitRequest(userId, level, time));
         
-        // TODO: Реализовать HTTP запрос к Supabase API
-        // В desktop версии нужно использовать Java HTTP клиент или libGDX extensions
-        // Пример реализации с использованием Java HttpURLConnection:
-        /*
-        try {
-            URL url = new URL(API_URL + "/rpc/submit_result");
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("POST");
-            conn.setRequestProperty("Content-Type", "application/json");
-            conn.setRequestProperty("apikey", SUPABASE_ANON_KEY);
-            conn.setRequestProperty("Authorization", "Bearer " + SUPABASE_ANON_KEY);
-            
-            // Отправляем данные
-            String requestBody = json.toJson(new SubmitRequest(userId, level, time));
-            conn.setDoOutput(true);
-            try (OutputStream os = conn.getOutputStream()) {
-                byte[] input = requestBody.getBytes(StandardCharsets.UTF_8);
-                os.write(input, 0, input.length);
-            }
-            
-            // Читаем ответ
-            if (conn.getResponseCode() == 200) {
-                try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream()))) {
-                    String response = br.readLine();
-                    RankData[] list = json.fromJson(RankData[].class, response);
-                    if (list != null && list.length > 0) {
-                        RankData data = list[0];
-                        callback.onSuccess((int) data.rank, (int) data.total_players, data.best_time);
-                        return;
+        Net.HttpRequest httpRequest = new Net.HttpRequest(Net.HttpMethods.POST);
+        httpRequest.setUrl(url);
+        httpRequest.setHeader("Content-Type", "application/json");
+        httpRequest.setHeader("apikey", supabaseAnonKey);
+        httpRequest.setHeader("Authorization", "Bearer " + supabaseAnonKey);
+        httpRequest.setContent(requestBody);
+        
+        Gdx.net.sendHttpRequest(httpRequest, new Net.HttpResponseListener() {
+            @Override
+            public void handleHttpResponse(Net.HttpResponse httpResponse) {
+                int statusCode = httpResponse.getStatus().getStatusCode();
+                if (statusCode == 200) {
+                    try {
+                        String responseBody = httpResponse.getResultAsString();
+                        Gdx.app.log(TAG, "Submit response: " + responseBody);
+                        RankData[] list = json.fromJson(RankData[].class, responseBody);
+                        if (list != null && list.length > 0) {
+                            RankData data = list[0];
+                            float bestTime = data.best_time != null ? data.best_time : 0f;
+                            callback.onSuccess((int) data.rank, (int) data.total_players, bestTime);
+                        } else {
+                            callback.onError("No rank data received");
+                        }
+                    } catch (Exception e) {
+                        Gdx.app.error(TAG, "Failed to parse response", e);
+                        callback.onError("Failed to parse response: " + e.getMessage());
                     }
+                } else {
+                    String errorBody = httpResponse.getResultAsString();
+                    Gdx.app.error(TAG, "Submit failed: " + statusCode + " - " + errorBody);
+                    callback.onError("Submit failed: " + statusCode);
                 }
             }
-            callback.onError("Submit failed: " + conn.getResponseCode());
-        } catch (Exception e) {
-            callback.onError("Network error: " + e.getMessage());
-        }
-        */
-        
-        // Временная заглушка - имитируем успешную отправку
-        new Thread(() -> {
-            try {
-                Thread.sleep(300);
-                callback.onSuccess(1, 1, time);
-            } catch (InterruptedException e) {
-                callback.onError("Interrupted");
+            
+            @Override
+            public void failed(Throwable t) {
+                Gdx.app.error(TAG, "Network error", t);
+                callback.onError("Network error: " + t.getMessage());
             }
-        }).start();
+            
+            @Override
+            public void cancelled() {
+                callback.onError("Request cancelled");
+            }
+        });
     }
-
+    
     @Override
     public void getRank(String userId, int level, LeaderboardCallback callback) {
-        Gdx.app.log("DesktopLeaderboardService", "Getting rank for user: " + userId + ", level: " + level);
+        String url = apiUrl + "/rpc/get_user_rank";
+        String requestBody = json.toJson(new RankRequest(userId, level));
         
-        // TODO: Реализовать HTTP запрос к Supabase API
-        // В desktop версии нужно использовать Java HTTP клиент или libGDX extensions
-        // Пример реализации с использованием Java HttpURLConnection:
-        /*
-        try {
-            URL url = new URL(API_URL + "/rpc/get_user_rank");
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("POST");
-            conn.setRequestProperty("Content-Type", "application/json");
-            conn.setRequestProperty("apikey", SUPABASE_ANON_KEY);
-            conn.setRequestProperty("Authorization", "Bearer " + SUPABASE_ANON_KEY);
-            
-            // Отправляем данные
-            String requestBody = json.toJson(new RankRequest(userId, level));
-            conn.setDoOutput(true);
-            try (OutputStream os = conn.getOutputStream()) {
-                byte[] input = requestBody.getBytes(StandardCharsets.UTF_8);
-                os.write(input, 0, input.length);
-            }
-            
-            // Читаем ответ
-            if (conn.getResponseCode() == 200) {
-                try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream()))) {
-                    String response = br.readLine();
-                    RankData[] list = json.fromJson(RankData[].class, response);
-                    if (list != null && list.length > 0) {
-                        RankData data = list[0];
-                        callback.onSuccess((int) data.rank, (int) data.total_players, data.best_time);
-                        return;
+        Net.HttpRequest httpRequest = new Net.HttpRequest(Net.HttpMethods.POST);
+        httpRequest.setUrl(url);
+        httpRequest.setHeader("Content-Type", "application/json");
+        httpRequest.setHeader("apikey", supabaseAnonKey);
+        httpRequest.setHeader("Authorization", "Bearer " + supabaseAnonKey);
+        httpRequest.setContent(requestBody);
+        
+        Gdx.net.sendHttpRequest(httpRequest, new Net.HttpResponseListener() {
+            @Override
+            public void handleHttpResponse(Net.HttpResponse httpResponse) {
+                int statusCode = httpResponse.getStatus().getStatusCode();
+                if (statusCode == 200) {
+                    try {
+                        String responseBody = httpResponse.getResultAsString();
+                        RankData[] list = json.fromJson(RankData[].class, responseBody);
+                        if (list != null && list.length > 0) {
+                            RankData data = list[0];
+                            float bestTime = data.best_time != null ? data.best_time : 0f;
+                            callback.onSuccess((int) data.rank, (int) data.total_players, bestTime);
+                        } else {
+                            callback.onError("No rank data received");
+                        }
+                    } catch (Exception e) {
+                        callback.onError("Failed to parse response: " + e.getMessage());
                     }
+                } else {
+                    callback.onError("GetRank failed: " + statusCode);
                 }
             }
-            callback.onError("GetRank failed: " + conn.getResponseCode());
-        } catch (Exception e) {
-            callback.onError("Network error: " + e.getMessage());
-        }
-        */
-        
-        // Временная заглушка - имитируем получение ранга
-        new Thread(() -> {
-            try {
-                Thread.sleep(150);
-                callback.onSuccess(1, 1, 0f);
-            } catch (InterruptedException e) {
-                callback.onError("Interrupted");
+            
+            @Override
+            public void failed(Throwable t) {
+                callback.onError("Network error: " + t.getMessage());
             }
-        }).start();
+            
+            @Override
+            public void cancelled() {
+                callback.onError("Request cancelled");
+            }
+        });
     }
     
     @Override
     public void getBestTime(int level, LeaderboardCallback callback) {
-        Gdx.app.log("DesktopLeaderboardService", "Getting best time for level: " + level);
+        String url = apiUrl + "/rpc/get_level_best_time";
+        String requestBody = json.toJson(new BestTimeRequest(level));
         
-        // TODO: Реализовать HTTP запрос к Supabase API для получения лучшего времени уровня
-        // В desktop версии нужно использовать Java HTTP клиент или libGDX extensions
-        // Пример реализации с использованием Java HttpURLConnection:
-        /*
-        try {
-            URL url = new URL(API_URL + "/rpc/get_level_best_time");
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("POST");
-            conn.setRequestProperty("Content-Type", "application/json");
-            conn.setRequestProperty("apikey", SUPABASE_ANON_KEY);
-            conn.setRequestProperty("Authorization", "Bearer " + SUPABASE_ANON_KEY);
-            
-            // Отправляем данные
-            String requestBody = json.toJson(new BestTimeRequest(level));
-            conn.setDoOutput(true);
-            try (OutputStream os = conn.getOutputStream()) {
-                byte[] input = requestBody.getBytes(StandardCharsets.UTF_8);
-                os.write(input, 0, input.length);
-            }
-            
-            // Читаем ответ
-            if (conn.getResponseCode() == 200) {
-                try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream()))) {
-                    String response = br.readLine();
-                    BestTimeData[] list = json.fromJson(BestTimeData[].class, response);
-                    if (list != null && list.length > 0) {
-                        BestTimeData data = list[0];
-                        callback.onSuccess(0, 0, data.best_time); // rank и total не важны для лучшего времени
-                        return;
+        Net.HttpRequest httpRequest = new Net.HttpRequest(Net.HttpMethods.POST);
+        httpRequest.setUrl(url);
+        httpRequest.setHeader("Content-Type", "application/json");
+        httpRequest.setHeader("apikey", supabaseAnonKey);
+        httpRequest.setHeader("Authorization", "Bearer " + supabaseAnonKey);
+        httpRequest.setContent(requestBody);
+        
+        Gdx.net.sendHttpRequest(httpRequest, new Net.HttpResponseListener() {
+            @Override
+            public void handleHttpResponse(Net.HttpResponse httpResponse) {
+                int statusCode = httpResponse.getStatus().getStatusCode();
+                if (statusCode == 200) {
+                    try {
+                        String responseBody = httpResponse.getResultAsString();
+                        Gdx.app.log(TAG, "GetBestTime response: " + responseBody);
+                        BestTimeData[] list = json.fromJson(BestTimeData[].class, responseBody);
+                        if (list != null && list.length > 0) {
+                            BestTimeData data = list[0];
+                            float bestTime = data.best_time != null ? data.best_time : 0f;
+                            callback.onSuccess(0, 0, bestTime);
+                        } else {
+                            callback.onError("No best time data received");
+                        }
+                    } catch (Exception e) {
+                        Gdx.app.error(TAG, "Failed to parse response", e);
+                        callback.onError("Failed to parse response: " + e.getMessage());
                     }
+                } else {
+                    String errorBody = httpResponse.getResultAsString();
+                    Gdx.app.error(TAG, "GetBestTime failed: " + statusCode + " - " + errorBody);
+                    callback.onError("GetBestTime failed: " + statusCode);
                 }
             }
-            callback.onError("GetBestTime failed: " + conn.getResponseCode());
-        } catch (Exception e) {
-            callback.onError("Network error: " + e.getMessage());
-        }
-        */
-        
-        // Временная заглушка - имитируем получение лучшего времени
-        new Thread(() -> {
-            try {
-                Thread.sleep(100);
-                // Имитируем разные лучшие времена для разных уровней
-                float mockBestTime = 30f + (level * 5f) + (float)(Math.random() * 20f);
-                callback.onSuccess(0, 0, mockBestTime);
-            } catch (InterruptedException e) {
-                callback.onError("Interrupted");
+            
+            @Override
+            public void failed(Throwable t) {
+                Gdx.app.error(TAG, "Network error", t);
+                callback.onError("Network error: " + t.getMessage());
             }
-        }).start();
+            
+            @Override
+            public void cancelled() {
+                callback.onError("Request cancelled");
+            }
+        });
     }
     
     @Override
     public void getAllLevelsBestTimes(AllLevelsBestTimesCallback callback) {
-		Gdx.app.log("DesktopLeaderboardService", "Getting all levels best times");
-		
-		// TODO: Реализовать HTTP запрос к Supabase API для получения лучших времен всех уровней
-		// В desktop версии нужно использовать Java HTTP клиент или libGDX extensions
-		// Пример реализации с использованием Java HttpURLConnection:
-		/*
-		try {
-			URL url = new URL(API_URL + "/rpc/get_all_levels_best_times");
-			HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-			conn.setRequestMethod("POST");
-			conn.setRequestProperty("Content-Type", "application/json");
-			conn.setRequestProperty("apikey", SUPABASE_ANON_KEY);
-			conn.setRequestProperty("Authorization", "Bearer " + SUPABASE_ANON_KEY);
-			
-			// Читаем ответ
-			if (conn.getResponseCode() == 200) {
-				try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream()))) {
-					String response = br.readLine();
-					AllLevelsBestTimesData[] list = json.fromJson(AllLevelsBestTimesData[].class, response);
-					if (list != null && list.length > 0) {
-						Map<Integer, Float> levelToBestTime = new HashMap<>();
-						Map<Integer, Integer> levelToTotalPlayers = new HashMap<>();
-						
-						for (AllLevelsBestTimesData data : list) {
-							levelToBestTime.put(data.level_id, (float)data.best_time);
-							levelToTotalPlayers.put(data.level_id, (int)data.total_players);
-						}
-						
-						callback.onSuccess(levelToBestTime, levelToTotalPlayers);
-						return;
-					}
-				}
-			}
-			callback.onError("GetAllLevelsBestTimes failed: " + conn.getResponseCode());
-		} catch (Exception e) {
-			callback.onError("Network error: " + e.getMessage());
-		}
-		*/
-		
-		// Временная заглушка - имитируем получение лучших времен для всех уровней
-		new Thread(() -> {
-			try {
-				Thread.sleep(100);
-				
-				Map<Integer, Float> levelToBestTime = new HashMap<>();
-				Map<Integer, Integer> levelToTotalPlayers = new HashMap<>();
-				
-				// Имитируем данные для всех 16 уровней
-				for (int i = 1; i <= 16; i++) {
-					float mockBestTime = 30f + (i * 5f) + (float)(Math.random() * 20f);
-					int mockTotalPlayers = 50 + (int)(Math.random() * 100);
-					
-					levelToBestTime.put(i, mockBestTime);
-					levelToTotalPlayers.put(i, mockTotalPlayers);
-				}
-				
-				callback.onSuccess(levelToBestTime, levelToTotalPlayers);
-			} catch (InterruptedException e) {
-				callback.onError("Interrupted");
-			}
-		}).start();
-	}
-
-	@Override
-	public void getAllUserRanks(String userId, AllUserRanksCallback callback) {
-		Gdx.app.log("DesktopLeaderboardService", "Getting all user ranks for user: " + userId);
-		
-		// TODO: Реализовать HTTP запрос к Supabase API для получения рангов пользователя по всем уровням
-		// В desktop версии нужно использовать Java HTTP клиент или libGDX extensions
-		// Пример реализации с использованием Java HttpURLConnection:
-		/*
-		try {
-			URL url = new URL(API_URL + "/rpc/get_all_user_ranks_optimized");
-			HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-			conn.setRequestMethod("POST");
-			conn.setRequestProperty("Content-Type", "application/json");
-			conn.setRequestProperty("apikey", SUPABASE_ANON_KEY);
-			conn.setRequestProperty("Authorization", "Bearer " + SUPABASE_ANON_KEY);
-			
-			// Отправляем данные
-			String requestBody = json.toJson(new AllUserRanksRequest(userId));
-			conn.setDoOutput(true);
-			try (OutputStream os = conn.getOutputStream()) {
-				byte[] input = requestBody.getBytes(StandardCharsets.UTF_8);
-				os.write(input, 0, input.length);
-			}
-			
-			// Читаем ответ
-			if (conn.getResponseCode() == 200) {
-				try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream()))) {
-					String response = br.readLine();
-					AllUserRanksData[] list = json.fromJson(AllUserRanksData[].class, response);
-					if (list != null && list.length > 0) {
-						Map<Integer, Integer> levelToRank = new HashMap<>();
-						Map<Integer, Integer> levelToTotalPlayers = new HashMap<>();
-						Map<Integer, Float> levelToUserBestTime = new HashMap<>();
-						
-						for (AllUserRanksData data : list) {
-							levelToRank.put(data.level_id, (int)data.user_rank);
-							levelToTotalPlayers.put(data.level_id, (int)data.total_players);
-							// Обрабатываем null значения для user_best_time
-							float bestTime = data.user_best_time != null ? data.user_best_time : 0f;
-							levelToUserBestTime.put(data.level_id, bestTime);
-						}
-						
-						callback.onSuccess(levelToRank, levelToTotalPlayers, levelToUserBestTime);
-						return;
-					}
-				}
-			}
-			callback.onError("GetAllUserRanks failed: " + conn.getResponseCode());
-		} catch (Exception e) {
-			callback.onError("Network error: " + e.getMessage());
-		}
-		*/
-		
-		// Временная заглушка - имитируем получение рангов пользователя для всех уровней
-		new Thread(() -> {
-			try {
-				Thread.sleep(100);
-				
-				Map<Integer, Integer> levelToRank = new HashMap<>();
-				Map<Integer, Integer> levelToTotalPlayers = new HashMap<>();
-				Map<Integer, Float> levelToUserBestTime = new HashMap<>();
-				
-				// Имитируем данные для всех 16 уровней
-				for (int i = 1; i <= 16; i++) {
-					int mockRank = 1 + (int)(Math.random() * 50);
-					int mockTotalPlayers = 50 + (int)(Math.random() * 100);
-					float mockUserBestTime = 30f + (i * 5f) + (float)(Math.random() * 20f);
-					
-					levelToRank.put(i, mockRank);
-					levelToTotalPlayers.put(i, mockTotalPlayers);
-					levelToUserBestTime.put(i, mockUserBestTime);
-				}
-				
-				callback.onSuccess(levelToRank, levelToTotalPlayers, levelToUserBestTime);
-			} catch (InterruptedException e) {
-				callback.onError("Interrupted");
-			}
-		}).start();
-	}
-
-	@Override
-	public void submitResultImmediately(String userId, int level, float time, ImmediateSubmitCallback callback) {
-		Gdx.app.log("DesktopLeaderboardService", "Submitting result immediately - User: " + userId + ", Level: " + level + ", Time: " + time);
-		
-		// Используем существующий метод submitResult
-		submitResult(userId, level, time, new LeaderboardCallback() {
-			@Override
-			public void onSuccess(int rank, int totalPlayers, float bestTime) {
-				callback.onSuccess(rank, totalPlayers, bestTime);
-			}
-			
-			@Override
-			public void onError(String error) {
-				callback.onError(error);
-			}
-		});
-	}
+        String url = apiUrl + "/rpc/get_all_levels_best_times";
+        String requestBody = "{}"; // Пустой JSON для POST
+        
+        Net.HttpRequest httpRequest = new Net.HttpRequest(Net.HttpMethods.POST);
+        httpRequest.setUrl(url);
+        httpRequest.setHeader("Content-Type", "application/json");
+        httpRequest.setHeader("apikey", supabaseAnonKey);
+        httpRequest.setHeader("Authorization", "Bearer " + supabaseAnonKey);
+        httpRequest.setContent(requestBody);
+        
+        Gdx.net.sendHttpRequest(httpRequest, new Net.HttpResponseListener() {
+            @Override
+            public void handleHttpResponse(Net.HttpResponse httpResponse) {
+                int statusCode = httpResponse.getStatus().getStatusCode();
+                if (statusCode == 200) {
+                    try {
+                        String responseBody = httpResponse.getResultAsString();
+                        Gdx.app.log(TAG, "GetAllLevelsBestTimes response: " + responseBody);
+                        AllLevelsBestTimesData[] list = json.fromJson(AllLevelsBestTimesData[].class, responseBody);
+                        if (list != null && list.length > 0) {
+                            Map<Integer, Float> levelToBestTime = new HashMap<>();
+                            Map<Integer, Integer> levelToTotalPlayers = new HashMap<>();
+                            for (AllLevelsBestTimesData data : list) {
+                                float bestTime = data.best_time != null ? data.best_time : 0f;
+                                levelToBestTime.put(data.level_id, bestTime);
+                                levelToTotalPlayers.put(data.level_id, (int)data.total_players);
+                            }
+                            callback.onSuccess(levelToBestTime, levelToTotalPlayers);
+                        } else {
+                            callback.onError("No best times data received");
+                        }
+                    } catch (Exception e) {
+                        Gdx.app.error(TAG, "Failed to parse response", e);
+                        callback.onError("Failed to parse response: " + e.getMessage());
+                    }
+                } else {
+                    String errorBody = httpResponse.getResultAsString();
+                    Gdx.app.error(TAG, "GetAllLevelsBestTimes failed: " + statusCode + " - " + errorBody);
+                    callback.onError("GetAllLevelsBestTimes failed: " + statusCode);
+                }
+            }
+            
+            @Override
+            public void failed(Throwable t) {
+                Gdx.app.error(TAG, "Network error", t);
+                callback.onError("Network error: " + t.getMessage());
+            }
+            
+            @Override
+            public void cancelled() {
+                callback.onError("Request cancelled");
+            }
+        });
+    }
     
-    // Классы для запросов (аналогично Android версии)
+    @Override
+    public void getAllUserRanks(String userId, AllUserRanksCallback callback) {
+        String url = apiUrl + "/rpc/get_all_user_ranks_optimized";
+        String requestBody = json.toJson(new AllUserRanksRequest(userId));
+        
+        Net.HttpRequest httpRequest = new Net.HttpRequest(Net.HttpMethods.POST);
+        httpRequest.setUrl(url);
+        httpRequest.setHeader("Content-Type", "application/json");
+        httpRequest.setHeader("apikey", supabaseAnonKey);
+        httpRequest.setHeader("Authorization", "Bearer " + supabaseAnonKey);
+        httpRequest.setContent(requestBody);
+        
+        Gdx.net.sendHttpRequest(httpRequest, new Net.HttpResponseListener() {
+            @Override
+            public void handleHttpResponse(Net.HttpResponse httpResponse) {
+                int statusCode = httpResponse.getStatus().getStatusCode();
+                if (statusCode == 200) {
+                    try {
+                        String responseBody = httpResponse.getResultAsString();
+                        Gdx.app.log(TAG, "GetAllUserRanks response: " + responseBody);
+                        AllUserRanksData[] list = json.fromJson(AllUserRanksData[].class, responseBody);
+                        if (list != null && list.length > 0) {
+                            Map<Integer, Integer> levelToRank = new HashMap<>();
+                            Map<Integer, Integer> levelToTotalPlayers = new HashMap<>();
+                            Map<Integer, Float> levelToUserBestTime = new HashMap<>();
+                            for (AllUserRanksData data : list) {
+                                levelToRank.put(data.level_id, (int)data.user_rank);
+                                levelToTotalPlayers.put(data.level_id, (int)data.total_players);
+                                float bestTime = data.user_best_time != null ? data.user_best_time : 0f;
+                                levelToUserBestTime.put(data.level_id, bestTime);
+                            }
+                            callback.onSuccess(levelToRank, levelToTotalPlayers, levelToUserBestTime);
+                        } else {
+                            callback.onError("No user ranks data received");
+                        }
+                    } catch (Exception e) {
+                        Gdx.app.error(TAG, "Failed to parse response", e);
+                        callback.onError("Failed to parse response: " + e.getMessage());
+                    }
+                } else {
+                    String errorBody = httpResponse.getResultAsString();
+                    Gdx.app.error(TAG, "GetAllUserRanks failed: " + statusCode + " - " + errorBody);
+                    callback.onError("GetAllUserRanks failed: " + statusCode);
+                }
+            }
+            
+            @Override
+            public void failed(Throwable t) {
+                Gdx.app.error(TAG, "Network error", t);
+                callback.onError("Network error: " + t.getMessage());
+            }
+            
+            @Override
+            public void cancelled() {
+                callback.onError("Request cancelled");
+            }
+        });
+    }
+    
+    @Override
+    public void submitResultImmediately(String userId, int level, float time, ImmediateSubmitCallback callback) {
+        Gdx.app.log(TAG, "Submitting result immediately - User: " + userId + ", Level: " + level + ", Time: " + time);
+        
+        submitResult(userId, level, time, new LeaderboardCallback() {
+            @Override
+            public void onSuccess(int rank, int totalPlayers, float bestTime) {
+                callback.onSuccess(rank, totalPlayers, bestTime);
+            }
+            
+            @Override
+            public void onError(String error) {
+                callback.onError(error);
+            }
+        });
+    }
+    
+    // Классы для запросов и ответов
     private static class SubmitRequest {
         public String p_user_id;
         public int p_level;
         public float p_time;
-        
         SubmitRequest(String userId, int level, float time) {
             this.p_user_id = userId;
             this.p_level = level;
@@ -361,17 +369,15 @@ public class DesktopLeaderboardService implements LeaderboardService {
         }
     }
     
-    // Ответ RPC
     private static class RankData {
         public long rank;
         public long total_players;
-        public Float best_time; // Изменено на Float для поддержки null
+        public Float best_time;
     }
     
     private static class RankRequest {
         public String p_user_id;
         public int p_level;
-        
         RankRequest(String userId, int level) {
             this.p_user_id = userId;
             this.p_level = level;
@@ -380,36 +386,34 @@ public class DesktopLeaderboardService implements LeaderboardService {
     
     private static class BestTimeRequest {
         public int p_level;
-        
         BestTimeRequest(int level) {
             this.p_level = level;
         }
     }
     
     private static class BestTimeData {
-        public Float best_time; // Изменено на Float для поддержки null
+        public Float best_time;
         public long total_players;
         public int level_id;
     }
     
     private static class AllLevelsBestTimesData {
-        public Float best_time; // Изменено на Float для поддержки null
+        public Float best_time;
         public long total_players;
         public int level_id;
     }
-
-	private static class AllUserRanksRequest {
-		public String p_user_id;
-		
-		AllUserRanksRequest(String userId) {
-			this.p_user_id = userId;
-		}
-	}
-	
-	private static class AllUserRanksData {
-		public int level_id;
-		public long user_rank;
-		public long total_players;
-		public Float user_best_time; // Уже правильный тип
-	}
+    
+    private static class AllUserRanksRequest {
+        public String p_user_id;
+        AllUserRanksRequest(String userId) {
+            this.p_user_id = userId;
+        }
+    }
+    
+    private static class AllUserRanksData {
+        public int level_id;
+        public long user_rank;
+        public long total_players;
+        public Float user_best_time;
+    }
 }

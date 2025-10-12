@@ -30,8 +30,28 @@
         android:resizeableActivity="true"
         android:supportsPictureInPicture="true"
         android:hardwareAccelerated="true"
-        android:immersive="true">
+        android:immersive="true"
+        android:largeHeap="true"
+        android:vmSafeMode="false"
+        android:allowBackup="true"
+        android:fullBackupContent="true"
+        android:dataExtractionRules="@xml/data_extraction_rules">
         
+        <!-- Поддержка страниц памяти 16 КБ (требование Android 15) -->
+        <property
+            android:name="android.app.allow_native_heap_pointer_tagging"
+            android:value="true" />
+        
+        <!-- Дополнительные настройки оптимизации памяти -->
+        <meta-data
+            android:name="android.app.lib_name"
+            android:value="tronfg_native" />
+        <meta-data
+            android:name="android.app.memory_page_size"
+            android:value="16384" />
+        <meta-data
+            android:name="android.app.memory_optimization"
+            android:value="true" />
 
         
         <activity

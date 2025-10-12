@@ -39,8 +39,8 @@ android {
         applicationId "ru.schneider_dev.tronfg"
         minSdkVersion 21
         targetSdkVersion 35
-        versionCode 8
-        versionName "2.4"
+        versionCode 10
+        versionName "2.6"
         multiDexEnabled true
         
         // Оптимизация для Android App Bundle - поддержка всех архитектур
@@ -49,6 +49,17 @@ android {
             // Настройки для отладочных символов
             debugSymbolLevel 'FULL'
         }
+        
+        // Поддержка страниц памяти 16 КБ (требование Android 15)
+        // Включаем флаг для поддержки устройств с 16 КБ страницами
+        manifestPlaceholders = [
+            supportsMemoryPageSize16KB: "true"
+        ]
+        
+        // Настройки памяти для всех сборок
+        buildConfigField "int", "MEMORY_PAGE_SIZE", "16384"
+        buildConfigField "boolean", "MEMORY_OPTIMIZATION", "true"
+        buildConfigField "boolean", "USE_16KB_PAGES", "true"
 
         // Оптимизация для Bundle
         bundle {
@@ -110,6 +121,11 @@ android {
             ndk {
                 debugSymbolLevel 'FULL'
             }
+            
+            // Оптимизация памяти для release версии
+            buildConfigField "int", "MEMORY_PAGE_SIZE", "16384"
+            buildConfigField "boolean", "MEMORY_OPTIMIZATION", "true"
+            buildConfigField "boolean", "USE_16KB_PAGES", "true"
         }
         debug {
             buildConfigField "boolean", "DEBUG", "true"
